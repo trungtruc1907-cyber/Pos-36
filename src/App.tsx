@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { ViewMode, Product, Customer, Order, ActivityLog, CartItem, PaymentMethod } from './types';
+import { ViewMode, Product, Customer, Supplier, Order, ActivityLog, CartItem, PaymentMethod, PurchaseOrder } from './types';
 import { 
   INITIAL_CUSTOMERS, 
-  INITIAL_ORDERS, 
   INITIAL_ACTIVITY_LOGS,
   INITIAL_PURCHASES 
 } from './data/mockData';
@@ -11,6 +10,17 @@ import {
   addProduct,
   updateProduct
 } from './lib/productsService';
+import {
+  subscribeOrders,
+  addOrder
+} from './lib/ordersService';
+import {
+  subscribeSuppliers,
+  addSupplier,
+  updateSupplier,
+  deleteSupplier
+} from './lib/suppliersService';
+import { getDashboardStats } from './utils/dashboardUtils';
 
 import { Header } from './components/Header';
 import { DashboardView } from './components/Dashboard/DashboardView';
@@ -29,7 +39,11 @@ export default function App() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loadingProducts, setLoadingProducts] = useState<boolean>(true);
   const [customers, setCustomers] = useState<Customer[]>(INITIAL_CUSTOMERS);
-  const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [loadingSuppliers, setLoadingSuppliers] = useState<boolean>(true);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loadingOrders, setLoadingOrders] = useState<boolean>(true);
+  const [purchases, setPurchases] = useState<PurchaseOrder[]>(INITIAL_PURCHASES);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>(INITIAL_ACTIVITY_LOGS);
 
   // Subscribe to Firebase Firestore for products real-time data
@@ -47,9 +61,38 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Daily totals
-  const [todayRevenue, setTodayRevenue] = useState<number>(1410000);
-  const [todayOrdersCount, setTodayOrdersCount] = useState<number>(3);
+  // Subscribe to Firebase Firestore for suppliers real-time data
+  useEffect(() => {
+    const unsubscribe = subscribeSuppliers(
+      (firebaseSuppliers) => {
+        setSuppliers(firebaseSuppliers);
+        setLoadingSuppliers(false);
+      },
+      (error) => {
+        console.error('Firebase suppliers error:', error);
+        setLoadingSuppliers(false);
+      }
+    );
+    return () => unsubscribe();
+  }, []);
+
+  // Subscribe to Firebase Firestore for orders real-time data
+  useEffect(() => {
+    const unsubscribe = subscribeOrders(
+      (firebaseOrders) => {
+        setOrders(firebaseOrders);
+        setLoadingOrders(false);
+      },
+      (error) => {
+        console.error('Firebase orders error:', error);
+        setLoadingOrders(false);
+      }
+    );
+    return () => unsubscribe();
+  }, []);
+
+  // Daily totals calculated dynamically from database orders
+  const { todayRevenue, todayOrdersCount } = getDashboardStats(orders, products);
 
   // Modals state
   const [showQrModal, setShowQrModal] = useState<boolean>(false);
@@ -87,10 +130,36 @@ export default function App() {
     setCustomers([newCust, ...customers]);
   };
 
+  const handleAddNewSupplier = async (newSupp: Omit<Supplier, 'id'>) => {
+    try {
+      await addSupplier(newSupp);
+    } catch (err) {
+      console.error('Failed to add supplier to Firestore:', err);
+    }
+  };
+
+  const handleUpdateSupplier = async (id: string, updates: Partial<Supplier>) => {
+    try {
+      await updateSupplier(id, updates);
+    } catch (err) {
+      console.error('Failed to update supplier in Firestore:', err);
+    }
+  };
+
+  const handleDeleteSupplier = async (id: string) => {
+    try {
+      await deleteSupplier(id);
+    } catch (err) {
+      console.error('Failed to delete supplier from Firestore:', err);
+    }
+  };
+
   // Complete Order Checkout Handler
-  const handleCompleteCheckout = (checkoutData: {
+  const handleCompleteCheckout = async (checkoutData: {
+    customerCode?: string;
     customerName: string;
     cart: CartItem[];
+    subtotal: number;
     discount: number;
     surcharge: number;
     amountPaid: number;
@@ -98,51 +167,70 @@ export default function App() {
     totalAmount: number;
     note: string;
   }) => {
-    const orderCode = `HD${10295 + orders.length}`;
-    const dateStr = new Date().toLocaleDateString('vi-VN') + ' ' + new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    const now = new Date();
+    const dateFormatted = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+    const nextSeq = 9722 + orders.length;
+    const orderCode = `HD${String(nextSeq).padStart(6, '0')}`;
 
-    const newOrder: Order = {
-      id: `ord-${Date.now()}`,
+    const newOrderData: Omit<Order, 'id'> = {
       orderCode,
-      date: dateStr,
-      customerName: checkoutData.customerName,
+      date: dateFormatted,
+      returnCode: '',
+      customerCode: checkoutData.customerCode || 'KH000009',
+      customerName: checkoutData.customerName || 'Khách lẻ',
+      subtotal: checkoutData.subtotal || checkoutData.totalAmount,
+      discount: checkoutData.discount || 0,
       totalAmount: checkoutData.totalAmount,
+      amountPaid: checkoutData.amountPaid,
       itemsCount: checkoutData.cart.reduce((sum, item) => sum + item.quantity, 0),
       paymentMethod: checkoutData.paymentMethod,
       status: 'Đã thanh toán',
       items: checkoutData.cart,
-    };
-
-    // Update state
-    setOrders([newOrder, ...orders]);
-    setTodayRevenue((prev) => prev + checkoutData.totalAmount);
-    setTodayOrdersCount((prev) => prev + 1);
-
-    // Add activity log
-    const newLog: ActivityLog = {
-      id: `log-${Date.now()}`,
-      time: 'vừa xong',
-      type: 'sale',
-      storeName: 'Chống Thấm 36',
-      actionText: 'vừa bán đơn hàng',
-      amount: checkoutData.totalAmount,
-      formattedAmount: checkoutData.totalAmount.toLocaleString('vi-VN'),
-    };
-    setActivityLogs([newLog, ...activityLogs]);
-
-    // Open Receipt Printable Modal
-    setSelectedOrderForReceipt({
-      orderCode,
-      date: dateStr,
-      customerName: checkoutData.customerName,
-      cart: checkoutData.cart,
-      discount: checkoutData.discount,
-      surcharge: checkoutData.surcharge,
-      amountPaid: checkoutData.amountPaid,
-      paymentMethod: checkoutData.paymentMethod,
-      totalAmount: checkoutData.totalAmount,
       note: checkoutData.note,
-    });
+    };
+
+    try {
+      // 1. Save invoice/order to Firestore
+      await addOrder(newOrderData);
+
+      // 2. Decrement stock for purchased products in Firestore
+      for (const item of checkoutData.cart) {
+        const prod = products.find((p) => p.id === item.product.id || p.code === item.product.code);
+        if (prod) {
+          const newStock = Math.max(0, prod.stock - item.quantity);
+          await updateProduct(prod.id, { stock: newStock });
+        }
+      }
+
+      // Add activity log
+      const newLog: ActivityLog = {
+        id: `log-${Date.now()}`,
+        time: 'vừa xong',
+        type: 'sale',
+        storeName: 'Chống Thấm 36',
+        actionText: 'vừa bán đơn hàng',
+        amount: checkoutData.totalAmount,
+        formattedAmount: checkoutData.totalAmount.toLocaleString('vi-VN'),
+      };
+      setActivityLogs([newLog, ...activityLogs]);
+
+      // Open Receipt Printable Modal
+      setSelectedOrderForReceipt({
+        orderCode,
+        date: dateFormatted,
+        customerName: checkoutData.customerName,
+        cart: checkoutData.cart,
+        discount: checkoutData.discount,
+        surcharge: checkoutData.surcharge,
+        amountPaid: checkoutData.amountPaid,
+        paymentMethod: checkoutData.paymentMethod,
+        totalAmount: checkoutData.totalAmount,
+        note: checkoutData.note,
+      });
+    } catch (error) {
+      console.error('Failed to complete order in Firestore:', error);
+      alert('Đã xảy ra lỗi khi lưu hóa đơn vào cơ sở dữ liệu.');
+    }
   };
 
   // Reprint previous order
@@ -184,6 +272,8 @@ export default function App() {
           {/* Main View Router */}
           {currentView === 'dashboard' && (
             <DashboardView
+              orders={orders}
+              products={products}
               activityLogs={activityLogs}
               todayRevenue={todayRevenue}
               todayOrdersCount={todayOrdersCount}
@@ -194,6 +284,7 @@ export default function App() {
           {(currentView === 'goods' || currentView === 'stock-check') && (
             <GoodsModal
               products={products}
+              orders={orders}
               onAddProduct={handleAddNewProduct}
               onUpdateProduct={handleUpdateProduct}
             />
@@ -202,19 +293,26 @@ export default function App() {
           {(currentView === 'orders' || currentView === 'returns' || currentView === 'purchases' || currentView === 'purchase-returns') && (
             <OrdersModal
               orders={orders}
-              purchases={INITIAL_PURCHASES}
+              purchases={purchases}
+              products={products}
+              suppliers={suppliers}
               currentView={currentView}
               onSelectView={(v) => setCurrentView(v)}
               onReprintOrder={handleReprintOrder}
+              onAddPurchase={(p) => setPurchases((prev) => [p, ...prev])}
             />
           )}
 
           {(currentView === 'customers' || currentView === 'suppliers' || currentView === 'employees' || currentView === 'promotions') && (
             <CustomersModal
               customers={customers}
+              suppliers={suppliers}
               currentView={currentView}
               onSelectView={(v) => setCurrentView(v)}
               onAddCustomer={handleAddNewCustomer}
+              onAddSupplier={handleAddNewSupplier}
+              onUpdateSupplier={handleUpdateSupplier}
+              onDeleteSupplier={handleDeleteSupplier}
             />
           )}
 

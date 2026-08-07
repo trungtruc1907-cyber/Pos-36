@@ -3,41 +3,48 @@ import { StatsCards } from './StatsCards';
 import { RevenueChartSection } from './RevenueChartSection';
 import { TopChartsSection } from './TopChartsSection';
 import { RightSidebar } from './RightSidebar';
-import { ActivityLog } from '../../types';
+import { Order, Product, ActivityLog } from '../../types';
+import { getDashboardStats, getActivityLogsFromOrders } from '../../utils/dashboardUtils';
 
 interface DashboardViewProps {
-  activityLogs: ActivityLog[];
-  todayRevenue: number;
-  todayOrdersCount: number;
+  orders: Order[];
+  products: Product[];
+  activityLogs?: ActivityLog[];
+  todayRevenue?: number;
+  todayOrdersCount?: number;
   onOpenQrInfo: () => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
-  activityLogs,
-  todayRevenue,
-  todayOrdersCount,
+  orders,
+  products,
+  activityLogs: externalActivityLogs,
   onOpenQrInfo,
 }) => {
+  const stats = getDashboardStats(orders, products);
+  const dynamicLogs = getActivityLogsFromOrders(orders);
+  const activeLogs = externalActivityLogs && externalActivityLogs.length > 0 ? externalActivityLogs : dynamicLogs;
+
   return (
     <main className="flex-1 bg-[#f3f4f6] p-4 flex flex-col lg:flex-row gap-4 overflow-auto">
       {/* Left Column: Stats & Charts */}
       <div className="flex-1 space-y-4 min-w-0">
         <StatsCards
-          todayRevenue={todayRevenue}
-          todayOrdersCount={todayOrdersCount}
-          todayReturns={0}
-          vsYesterdayPercent={-74.09}
-          vsLastMonthPercent={28.52}
+          todayRevenue={stats.todayRevenue}
+          todayOrdersCount={stats.todayOrdersCount}
+          todayReturns={stats.todayReturns}
+          vsYesterdayPercent={stats.vsYesterdayPercent}
+          vsLastMonthPercent={stats.vsLastMonthPercent}
         />
 
-        <RevenueChartSection totalRevenueNet={62907000} />
+        <RevenueChartSection orders={orders} />
 
-        <TopChartsSection />
+        <TopChartsSection orders={orders} products={products} />
       </div>
 
       {/* Right Column: Promos & Recent Activities */}
       <RightSidebar
-        activityLogs={activityLogs}
+        activityLogs={activeLogs}
         onOpenQrInfo={onOpenQrInfo}
       />
     </main>

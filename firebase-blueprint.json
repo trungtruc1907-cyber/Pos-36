@@ -28,17 +28,61 @@
         "updatedAt": { "type": "string", "description": "Thời gian cập nhật" }
       },
       "required": ["code", "name", "price", "unit"]
+    },
+    "orders": {
+      "title": "Danh sách Hóa đơn",
+      "description": "Bảng quản lý danh sách hóa đơn và đơn bán hàng",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "ID hóa đơn" },
+        "orderCode": { "type": "string", "description": "Mã hóa đơn (VD: HD009721)" },
+        "date": { "type": "string", "description": "Thời gian (VD: 07/08/2026 10:03:12)" },
+        "returnCode": { "type": "string", "description": "Mã trả hàng" },
+        "customerCode": { "type": "string", "description": "Mã khách hàng (VD: KH000009)" },
+        "customerName": { "type": "string", "description": "Tên khách hàng" },
+        "subtotal": { "type": "number", "description": "Tổng tiền hàng" },
+        "discount": { "type": "number", "description": "Giảm giá" },
+        "totalAmount": { "type": "number", "description": "Tổng sau giảm giá" },
+        "amountPaid": { "type": "number", "description": "Khách đã trả" },
+        "itemsCount": { "type": "number", "description": "Số lượng mặt hàng" },
+        "paymentMethod": { "type": "string", "description": "Phương thức thanh toán" },
+        "status": { "type": "string", "description": "Trạng thái đơn hàng" },
+        "note": { "type": "string", "description": "Ghi chú đơn hàng" },
+        "createdAt": { "type": "string", "description": "Thời gian tạo" }
+      },
+      "required": ["orderCode", "date", "customerName", "totalAmount"]
+    },
+    "suppliers": {
+      "title": "Danh sách Nhà cung cấp",
+      "description": "Bảng quản lý danh sách nhà cung cấp",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "ID nhà cung cấp" },
+        "code": { "type": "string", "description": "Mã nhà cung cấp (VD: NCC000048)" },
+        "name": { "type": "string", "description": "Tên nhà cung cấp" },
+        "phone": { "type": "string", "description": "Điện thoại" },
+        "email": { "type": "string", "description": "Email" },
+        "currentDebt": { "type": "number", "description": "Nợ cần trả hiện tại" },
+        "totalPurchased": { "type": "number", "description": "Tổng mua" },
+        "address": { "type": "string", "description": "Địa chỉ" },
+        "note": { "type": "string", "description": "Ghi chú" },
+        "createdAt": { "type": "string", "description": "Thời gian tạo" }
+      },
+      "required": ["code", "name"]
     }
   },
-  "security": {
-    "rules": [
-      {
-        "collection": "products",
-        "allow": {
-          "read": "true",
-          "write": "true"
-        }
-      }
-    ]
+  "firestore": {
+    "/products/{productId}": {
+      "schema": "products",
+      "description": "Danh sách sản phẩm"
+    },
+    "/orders/{orderId}": {
+      "schema": "orders",
+      "description": "Danh sách hóa đơn bán hàng"
+    },
+    "/suppliers/{supplierId}": {
+      "schema": "suppliers",
+      "description": "Danh sách nhà cung cấp"
+    }
   }
 }

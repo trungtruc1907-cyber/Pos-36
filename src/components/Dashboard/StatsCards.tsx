@@ -49,12 +49,24 @@ export const StatsCards: React.FC<StatsCardsProps> = ({
 
         {/* Stat Card 3: Doanh thu thuần so với hôm qua */}
         <div className="flex items-center p-2 rounded-md hover:bg-gray-50 transition-colors lg:border-l lg:border-gray-100 lg:pl-4">
-          <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center text-red-500 mr-3 shrink-0">
-            <ArrowDown className="w-6 h-6 text-red-500" />
+          <div
+            className={`w-10 h-10 rounded-full flex items-center justify-center mr-3 shrink-0 ${
+              vsYesterdayPercent >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'
+            }`}
+          >
+            {vsYesterdayPercent >= 0 ? (
+              <ArrowUp className="w-6 h-6 text-emerald-600" />
+            ) : (
+              <ArrowDown className="w-6 h-6 text-red-500" />
+            )}
           </div>
           <div>
             <div className="text-xs text-gray-500 font-medium">Doanh thu thuần</div>
-            <div className="text-lg font-extrabold text-red-600">
+            <div
+              className={`text-lg font-extrabold ${
+                vsYesterdayPercent >= 0 ? 'text-emerald-600' : 'text-red-600'
+              }`}
+            >
               {vsYesterdayPercent > 0 ? `+${vsYesterdayPercent}%` : `${vsYesterdayPercent}%`}
             </div>
             <div className="text-xs text-gray-400">So với hôm qua</div>
@@ -63,12 +75,24 @@ export const StatsCards: React.FC<StatsCardsProps> = ({
 
         {/* Stat Card 4: So với cùng kỳ tháng trước */}
         <div className="flex items-center p-2 rounded-md hover:bg-gray-50 transition-colors lg:border-l lg:border-gray-100 lg:pl-4">
-          <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600 mr-3 shrink-0">
-            <ArrowUp className="w-6 h-6 text-emerald-600" />
+          <div
+            className={`w-10 h-10 rounded-full flex items-center justify-center mr-3 shrink-0 ${
+              vsLastMonthPercent >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'
+            }`}
+          >
+            {vsLastMonthPercent >= 0 ? (
+              <ArrowUp className="w-6 h-6 text-emerald-600" />
+            ) : (
+              <ArrowDown className="w-6 h-6 text-red-500" />
+            )}
           </div>
           <div>
             <div className="text-xs text-gray-500 font-medium">Doanh thu thuần</div>
-            <div className="text-lg font-extrabold text-emerald-600">
+            <div
+              className={`text-lg font-extrabold ${
+                vsLastMonthPercent >= 0 ? 'text-emerald-600' : 'text-red-600'
+              }`}
+            >
               {vsLastMonthPercent > 0 ? `+${vsLastMonthPercent}%` : `${vsLastMonthPercent}%`}
             </div>
             <div className="text-xs text-gray-400">So với cùng kỳ tháng trước</div>

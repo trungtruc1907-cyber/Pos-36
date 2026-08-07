@@ -9,7 +9,8 @@ import {
   Legend,
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
-import { REVENUE_DAILY_CHART } from '../../data/mockData';
+import { Order } from '../../types';
+import { getRevenueChartData } from '../../utils/dashboardUtils';
 
 ChartJS.register(
   CategoryScale,
@@ -21,57 +22,30 @@ ChartJS.register(
 );
 
 interface RevenueChartSectionProps {
-  totalRevenueNet: number;
+  orders: Order[];
 }
 
-export const RevenueChartSection: React.FC<RevenueChartSectionProps> = ({ totalRevenueNet }) => {
+export const RevenueChartSection: React.FC<RevenueChartSectionProps> = ({ orders }) => {
   const [activeTab, setActiveTab] = useState<'day' | 'hour' | 'weekday'>('day');
   const [timePeriod, setTimePeriod] = useState<string>('Tháng này');
 
-  // Chart data setup based on tab
-  const getChartData = () => {
-    if (activeTab === 'hour') {
-      return {
-        labels: ['08h', '10h', '12h', '14h', '16h', '18h', '20h'],
-        datasets: [
-          {
-            label: 'Doanh thu thuần (tr)',
-            data: [2.5, 8.1, 14.2, 19.8, 11.0, 5.2, 2.1],
-            backgroundColor: '#1e0b54',
-            borderRadius: 4,
-            barThickness: 24,
-          },
-        ],
-      };
-    } else if (activeTab === 'weekday') {
-      return {
-        labels: ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ Nhật'],
-        datasets: [
-          {
-            label: 'Doanh thu thuần (tr)',
-            data: [12.4, 18.2, 8.6, 14.1, 22.0, 31.5, 15.0],
-            backgroundColor: '#1e0b54',
-            borderRadius: 4,
-            barThickness: 24,
-          },
-        ],
-      };
-    }
+  const chartRes = getRevenueChartData(orders, timePeriod, activeTab);
 
-    // Default 'day'
-    return {
-      labels: REVENUE_DAILY_CHART.map((item) => item.day),
-      datasets: [
-        {
-          label: 'Doanh thu thuần (tr)',
-          data: REVENUE_DAILY_CHART.map((item) => item.amount),
-          backgroundColor: '#1e0b54',
-          borderRadius: 4,
-          barThickness: 22,
-        },
-      ],
-    };
+  const chartData = {
+    labels: chartRes.labels,
+    datasets: [
+      {
+        label: 'Doanh thu thuần (tr)',
+        data: chartRes.data,
+        backgroundColor: '#1e0b54',
+        borderRadius: 4,
+        barThickness: activeTab === 'day' ? 20 : 24,
+      },
+    ],
   };
+
+  const maxVal = Math.max(...chartRes.data, 10);
+  const suggestedMax = Math.ceil(maxVal * 1.25);
 
   const options = {
     responsive: true,
@@ -89,9 +63,8 @@ export const RevenueChartSection: React.FC<RevenueChartSectionProps> = ({ totalR
     scales: {
       y: {
         beginAtZero: true,
-        max: 30,
+        suggestedMax: suggestedMax,
         ticks: {
-          stepSize: 3,
           callback: (value: any) => `${value} tr`,
           font: {
             size: 11,
@@ -122,7 +95,7 @@ export const RevenueChartSection: React.FC<RevenueChartSectionProps> = ({ totalR
         <div className="flex items-baseline space-x-3">
           <h2 className="text-base font-bold text-gray-800">Doanh thu thuần</h2>
           <span className="text-xl font-extrabold text-[#1e0b54]">
-            {totalRevenueNet.toLocaleString('vi-VN')}đ
+            {chartRes.totalNet.toLocaleString('vi-VN')}đ
           </span>
         </div>
 
@@ -176,7 +149,7 @@ export const RevenueChartSection: React.FC<RevenueChartSectionProps> = ({ totalR
 
       {/* Chart Canvas */}
       <div className="h-64 w-full">
-        <Bar data={getChartData()} options={options} />
+        <Bar data={chartData} options={options} />
       </div>
     </section>
   );

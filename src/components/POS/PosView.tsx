@@ -30,8 +30,10 @@ interface PosViewProps {
   customers: Customer[];
   onBackToDashboard: () => void;
   onCompleteCheckout: (orderData: {
+    customerCode?: string;
     customerName: string;
     cart: CartItem[];
+    subtotal: number;
     discount: number;
     surcharge: number;
     amountPaid: number;
@@ -54,41 +56,13 @@ export const PosView: React.FC<PosViewProps> = ({
     {
       id: 'tab-1',
       title: 'Hóa đơn 1',
-      cart: [
-        {
-          product: products[0] || {
-            id: 'p1',
-            code: 'SP2510948',
-            name: 'SikaGrout®-214-11 - Vữa rót gốc xi măng',
-            unit: 'Bao',
-            price: 290000,
-            costPrice: 220000,
-            stock: 142,
-            category: 'Vữa rót',
-          },
-          quantity: 1,
-          unitPrice: 290000,
-        },
-        {
-          product: products[1] || {
-            id: 'p2',
-            code: '6940971219824',
-            name: 'Lưới thuỷ tinh 3*3*50',
-            unit: 'cuộn',
-            price: 350000,
-            costPrice: 260000,
-            stock: 85,
-            category: 'Phụ kiện',
-          },
-          quantity: 1,
-          unitPrice: 350000,
-        },
-      ],
-      customerId: customers[0]?.id || 'c1',
-      customerName: customers[0]?.name || 'Chống Thấm 36',
+      cart: [],
+      customerId: 'c7',
+      customerCode: 'KH000009',
+      customerName: 'Khách lẻ',
       discount: 0,
       surcharge: 0,
-      amountPaid: 640000,
+      amountPaid: 0,
       paymentMethod: 'cash',
       note: '',
     },
@@ -154,8 +128,9 @@ export const PosView: React.FC<PosViewProps> = ({
       id: newId,
       title: `Hóa đơn ${tabs.length + 1}`,
       cart: [],
-      customerId: 'c1',
-      customerName: 'Chống Thấm 36',
+      customerId: 'c7',
+      customerCode: 'KH000009',
+      customerName: 'Khách lẻ',
       discount: 0,
       surcharge: 0,
       amountPaid: 0,
@@ -316,8 +291,10 @@ export const PosView: React.FC<PosViewProps> = ({
     }
 
     onCompleteCheckout({
+      customerCode: activeTab.customerCode || 'KH000009',
       customerName: activeTab.customerName,
       cart: activeTab.cart,
+      subtotal: rawTotal,
       discount: activeTab.discount,
       surcharge: activeTab.surcharge,
       amountPaid: activeTab.amountPaid,
@@ -650,6 +627,7 @@ export const PosView: React.FC<PosViewProps> = ({
                             updateActiveTab((tab) => ({
                               ...tab,
                               customerId: c.id,
+                              customerCode: c.code || (c.id === 'c1' ? 'KH000001' : c.id === 'c2' ? 'TS' : c.id === 'c7' ? 'KH000009' : 'KH000009'),
                               customerName: c.name,
                             }));
                             setShowCustomerDropdown(false);

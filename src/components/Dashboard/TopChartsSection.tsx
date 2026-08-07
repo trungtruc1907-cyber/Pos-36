@@ -9,7 +9,8 @@ import {
   Legend,
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
-import { TOP_PRODUCTS_DATA, TOP_CUSTOMERS_DATA } from '../../data/mockData';
+import { Order, Product } from '../../types';
+import { getTopProductsData, getTopCustomersData } from '../../utils/dashboardUtils';
 
 ChartJS.register(
   CategoryScale,
@@ -20,24 +21,34 @@ ChartJS.register(
   Legend
 );
 
-export const TopChartsSection: React.FC = () => {
+interface TopChartsSectionProps {
+  orders: Order[];
+  products: Product[];
+}
+
+export const TopChartsSection: React.FC<TopChartsSectionProps> = ({ orders, products }) => {
   const [productFilter, setProductFilter] = useState('Theo doanh thu thuần');
   const [timeFilterProducts, setTimeFilterProducts] = useState('Tháng này');
   const [timeFilterCustomers, setTimeFilterCustomers] = useState('Tháng này');
 
-  // Chart setup for Top 10 Products
+  // Compute Top Products dynamically from DB
+  const topProductsRes = getTopProductsData(orders, products, timeFilterProducts, productFilter);
+
   const productsChartData = {
-    labels: TOP_PRODUCTS_DATA.map((p) => p.name),
+    labels: topProductsRes.labels,
     datasets: [
       {
-        label: 'Doanh thu (tr)',
-        data: TOP_PRODUCTS_DATA.map((p) => p.value),
+        label: productFilter === 'Theo số lượng' ? 'Số lượng' : 'Doanh thu (tr)',
+        data: topProductsRes.values,
         backgroundColor: '#1e0b54',
         borderRadius: 3,
         barThickness: 12,
       },
     ],
   };
+
+  const maxProdVal = Math.max(...topProductsRes.values, 5);
+  const suggestedMaxProd = Math.ceil(maxProdVal * 1.2);
 
   const productsChartOptions = {
     indexAxis: 'y' as const,
@@ -47,17 +58,25 @@ export const TopChartsSection: React.FC = () => {
       legend: { display: false },
       tooltip: {
         callbacks: {
-          label: (context: any) => `${context.parsed.x} tr VNĐ`,
+          label: (context: any) =>
+            productFilter === 'Theo số lượng'
+              ? `${context.parsed.x} sản phẩm`
+              : `${context.parsed.x} tr VNĐ`,
         },
       },
     },
     scales: {
       x: {
         beginAtZero: true,
-        max: 35,
+        suggestedMax: suggestedMaxProd,
         grid: { color: '#f3f4f6' },
         ticks: {
-          callback: (value: any) => (value > 0 ? `${value} tr` : '0'),
+          callback: (value: any) =>
+            productFilter === 'Theo số lượng'
+              ? `${value}`
+              : value > 0
+              ? `${value} tr`
+              : '0',
           font: { size: 10 },
         },
       },
@@ -71,19 +90,24 @@ export const TopChartsSection: React.FC = () => {
     },
   };
 
-  // Chart setup for Top 10 Customers
+  // Compute Top Customers dynamically from DB
+  const topCustomersRes = getTopCustomersData(orders, timeFilterCustomers);
+
   const customersChartData = {
-    labels: TOP_CUSTOMERS_DATA.map((c) => c.name),
+    labels: topCustomersRes.labels,
     datasets: [
       {
         label: 'Giá trị (tr)',
-        data: TOP_CUSTOMERS_DATA.map((c) => c.value),
+        data: topCustomersRes.values,
         backgroundColor: '#1e0b54',
         borderRadius: 3,
         barThickness: 12,
       },
     ],
   };
+
+  const maxCustVal = Math.max(...topCustomersRes.values, 5);
+  const suggestedMaxCust = Math.ceil(maxCustVal * 1.2);
 
   const customersChartOptions = {
     indexAxis: 'y' as const,
@@ -100,7 +124,7 @@ export const TopChartsSection: React.FC = () => {
     scales: {
       x: {
         beginAtZero: true,
-        max: 36,
+        suggestedMax: suggestedMaxCust,
         grid: { color: '#f3f4f6' },
         ticks: {
           callback: (value: any) => (value > 0 ? `${value} tr` : '0'),

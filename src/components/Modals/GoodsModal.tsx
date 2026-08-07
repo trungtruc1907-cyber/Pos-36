@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Product } from '../../types';
+import { Product, Order } from '../../types';
 import { 
   Search, 
   Plus, 
@@ -15,18 +15,161 @@ import {
   Copy,
   Edit3,
   Printer,
-  MoreHorizontal
+  MoreHorizontal,
+  FileText,
+  ArrowDownRight,
+  ArrowUpRight,
+  ClipboardCheck,
+  ShoppingCart,
+  Truck
 } from 'lucide-react';
 import { resetAndSeedDatabase, deleteProduct } from '../../lib/productsService';
 
 interface GoodsModalProps {
   products: Product[];
+  orders?: Order[];
   onAddProduct: (product: Product) => void;
   onUpdateProduct: (product: Product) => void;
 }
 
+export interface StockLedgerEntry {
+  id: string;
+  time: string;
+  docCode: string;
+  docType: 'Bán hàng' | 'Nhập hàng' | 'Kiểm kho' | 'Trả hàng';
+  categoryKey: 'sale' | 'import' | 'check' | 'return';
+  partner: string;
+  unitPrice: number;
+  changeQty: number;
+  endingStock: number;
+  note: string;
+}
+
+function buildStockLedger(p: Product, orders: Order[] = []): StockLedgerEntry[] {
+  const rawEntries: Array<{
+    id: string;
+    timestamp: number;
+    timeStr: string;
+    docCode: string;
+    docType: 'Bán hàng' | 'Nhập hàng' | 'Kiểm kho' | 'Trả hàng';
+    categoryKey: 'sale' | 'import' | 'check' | 'return';
+    partner: string;
+    unitPrice: number;
+    changeQty: number;
+    note: string;
+  }> = [];
+
+  // 1. Sales orders (Bán hàng) from real orders state
+  orders.forEach((order) => {
+    if (order.status === 'Đã hủy') return;
+    const matchItem = order.items.find(
+      (item) =>
+        item.product?.id === p.id ||
+        item.product?.code === p.code ||
+        (item.product?.name && item.product.name.toLowerCase() === p.name.toLowerCase())
+    );
+    if (matchItem) {
+      let ts = Date.now();
+      if (order.date) {
+        const parts = order.date.split(' ');
+        if (parts[0] && parts[0].includes('/')) {
+          const [d, m, y] = parts[0].split('/');
+          const time = parts[1] || '12:00';
+          ts = new Date(`${y}-${m}-${d}T${time}:00`).getTime() || Date.now();
+        }
+      }
+      rawEntries.push({
+        id: `sale-${order.id}-${matchItem.product?.code || p.code}`,
+        timestamp: ts,
+        timeStr: order.date || '07/08/2026 14:00',
+        docCode: order.orderCode || `HD${order.id}`,
+        docType: order.status === 'Trả hàng' ? 'Trả hàng' : 'Bán hàng',
+        categoryKey: order.status === 'Trả hàng' ? 'return' : 'sale',
+        partner: order.customerName || 'Khách lẻ',
+        unitPrice: matchItem.unitPrice || p.price,
+        changeQty: order.status === 'Trả hàng' ? matchItem.quantity : -matchItem.quantity,
+        note: order.note || 'Bán hàng trực tiếp tại POS',
+      });
+    }
+  });
+
+  // 2. Sample Import / Purchase Receipts (Nhập hàng)
+  const codeNum = Number(p.code.replace(/\D/g, '')) || 100;
+  const baseImportQty = Math.max(10, Math.round(p.stock * 0.7) + 20);
+  rawEntries.push({
+    id: `import-1-${p.id}`,
+    timestamp: new Date('2026-05-15T08:30:00').getTime(),
+    timeStr: '15/05/2026 08:30',
+    docCode: `PN000${(codeNum % 80) + 100}`,
+    docType: 'Nhập hàng',
+    categoryKey: 'import',
+    partner: 'Nhà cung cấp Việt Thái',
+    unitPrice: p.costPrice || Math.round(p.price * 0.8),
+    changeQty: baseImportQty,
+    note: 'Nhập kho hàng từ nhà cung cấp chính',
+  });
+
+  if (p.stock > 15) {
+    const importQty2 = Math.round(p.stock * 0.4) + 5;
+    rawEntries.push({
+      id: `import-2-${p.id}`,
+      timestamp: new Date('2026-06-20T10:15:00').getTime(),
+      timeStr: '20/06/2026 10:15',
+      docCode: `PN000${(codeNum % 80) + 120}`,
+      docType: 'Nhập hàng',
+      categoryKey: 'import',
+      partner: 'Nhà cung cấp Cường Việt NA',
+      unitPrice: p.costPrice || Math.round(p.price * 0.8),
+      changeQty: importQty2,
+      note: 'Nhập bổ sung kho tháng 6',
+    });
+  }
+
+  // 3. Sample Stock Audits / Checks (Kiểm kho)
+  rawEntries.push({
+    id: `check-1-${p.id}`,
+    timestamp: new Date('2026-07-01T16:00:00').getTime(),
+    timeStr: '01/07/2026 16:00',
+    docCode: `PKK000${(codeNum % 90) + 10}`,
+    docType: 'Kiểm kho',
+    categoryKey: 'check',
+    partner: 'Chống Thấm 36',
+    unitPrice: p.costPrice || p.price,
+    changeQty: +2,
+    note: 'Kiểm kho định kỳ tháng 7 - Cân bằng tồn kho',
+  });
+
+  // Sort ascending by timestamp to calculate running ending stock
+  rawEntries.sort((a, b) => a.timestamp - b.timestamp);
+
+  // Compute ending stock backward from current stock p.stock
+  const calculated: StockLedgerEntry[] = new Array(rawEntries.length);
+  let runningStock = p.stock;
+
+  for (let i = rawEntries.length - 1; i >= 0; i--) {
+    const entry = rawEntries[i];
+    calculated[i] = {
+      id: entry.id,
+      time: entry.timeStr,
+      docCode: entry.docCode,
+      docType: entry.docType,
+      categoryKey: entry.categoryKey,
+      partner: entry.partner,
+      unitPrice: entry.unitPrice,
+      changeQty: entry.changeQty,
+      endingStock: runningStock,
+      note: entry.note,
+    };
+    runningStock = runningStock - entry.changeQty;
+  }
+
+  // Reverse so newest records appear on top
+  return calculated.reverse();
+}
+
 export const GoodsModal: React.FC<GoodsModalProps> = ({
   products,
+  orders = [],
   onAddProduct,
   onUpdateProduct,
 }) => {
@@ -40,6 +183,11 @@ export const GoodsModal: React.FC<GoodsModalProps> = ({
   // Selected product row for expanded details
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'info' | 'description' | 'history' | 'stock' | 'channels'>('info');
+
+  // Stock ledger filter states
+  const [ledgerTypeFilter, setLedgerTypeFilter] = useState<string>('Tất cả');
+  const [ledgerSearch, setLedgerSearch] = useState<string>('');
+  const [selectedDocDetail, setSelectedDocDetail] = useState<{ entry: StockLedgerEntry; product: Product } | null>(null);
 
   // Form states for creating/editing
   const [formData, setFormData] = useState<Partial<Product>>({
@@ -612,30 +760,197 @@ export const GoodsModal: React.FC<GoodsModalProps> = ({
                                 </div>
                               )}
 
-                              {activeTab === 'history' && (
-                                <div className="overflow-x-auto text-xs">
-                                  <table className="w-full text-left border-collapse border border-gray-200">
-                                    <thead className="bg-gray-100 text-gray-700 font-bold">
-                                      <tr>
-                                        <th className="p-2 border">Thời gian</th>
-                                        <th className="p-2 border">Mã chứng từ</th>
-                                        <th className="p-2 border">Loại chứng từ</th>
-                                        <th className="p-2 border text-right">Số lượng</th>
-                                        <th className="p-2 border text-right">Tồn cuối</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-200 text-gray-600">
-                                      <tr>
-                                        <td className="p-2 border font-mono">08/07/2026 14:53</td>
-                                        <td className="p-2 border font-mono text-blue-600 font-bold">PN000124</td>
-                                        <td className="p-2 border">Nhập hàng nhà cung cấp</td>
-                                        <td className="p-2 border text-right font-mono font-bold text-emerald-600">+10</td>
-                                        <td className="p-2 border text-right font-mono font-bold">{p.stock}</td>
-                                      </tr>
-                                    </tbody>
-                                  </table>
-                                </div>
-                              )}
+                              {activeTab === 'history' && (() => {
+                                const ledger = buildStockLedger(p, orders);
+                                
+                                const filteredLedger = ledger.filter((entry) => {
+                                  const matchType =
+                                    ledgerTypeFilter === 'Tất cả' ||
+                                    (ledgerTypeFilter === 'Bán hàng' && (entry.docType === 'Bán hàng' || entry.docType === 'Trả hàng')) ||
+                                    (ledgerTypeFilter === 'Nhập hàng' && entry.docType === 'Nhập hàng') ||
+                                    (ledgerTypeFilter === 'Kiểm kho' && entry.docType === 'Kiểm kho');
+                                  
+                                  const query = ledgerSearch.trim().toLowerCase();
+                                  const matchSearch =
+                                    !query ||
+                                    entry.docCode.toLowerCase().includes(query) ||
+                                    entry.partner.toLowerCase().includes(query) ||
+                                    entry.note.toLowerCase().includes(query);
+
+                                  return matchType && matchSearch;
+                                });
+
+                                const totalImport = ledger
+                                  .filter((e) => e.changeQty > 0)
+                                  .reduce((acc, e) => acc + e.changeQty, 0);
+
+                                const totalExport = ledger
+                                  .filter((e) => e.changeQty < 0)
+                                  .reduce((acc, e) => acc + Math.abs(e.changeQty), 0);
+
+                                return (
+                                  <div className="space-y-3.5 text-xs">
+                                    {/* Top Filter and Search Controls */}
+                                    <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                                      <div className="flex items-center space-x-2">
+                                        <span className="font-semibold text-gray-700 whitespace-nowrap">Loại chứng từ:</span>
+                                        <select
+                                          value={ledgerTypeFilter}
+                                          onChange={(e) => setLedgerTypeFilter(e.target.value)}
+                                          className="border border-gray-300 rounded px-2 py-1 text-xs bg-white font-medium focus:outline-none focus:border-blue-600"
+                                        >
+                                          <option value="Tất cả">Tất cả chứng từ</option>
+                                          <option value="Bán hàng">Bán hàng (Xuất kho)</option>
+                                          <option value="Nhập hàng">Nhập hàng (Nhập kho)</option>
+                                          <option value="Kiểm kho">Kiểm kho (Cân bằng)</option>
+                                        </select>
+                                      </div>
+
+                                      <div className="relative flex-1 max-w-xs">
+                                        <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                                        <input
+                                          type="text"
+                                          value={ledgerSearch}
+                                          onChange={(e) => setLedgerSearch(e.target.value)}
+                                          placeholder="Tìm theo mã chứng từ, đối tác..."
+                                          className="w-full pl-8 pr-2 py-1 text-xs border border-gray-300 rounded bg-white focus:outline-none focus:border-blue-600"
+                                        />
+                                      </div>
+                                    </div>
+
+                                    {/* Summary Stats Cards */}
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                                      <div className="p-2.5 bg-emerald-50/70 border border-emerald-200 rounded-lg flex items-center justify-between">
+                                        <div>
+                                          <div className="text-[10px] uppercase font-bold text-emerald-800">Tổng nhập</div>
+                                          <div className="text-sm font-extrabold font-mono text-emerald-700 mt-0.5">+{totalImport} {p.unit}</div>
+                                        </div>
+                                        <ArrowDownRight className="w-5 h-5 text-emerald-600" />
+                                      </div>
+
+                                      <div className="p-2.5 bg-rose-50/70 border border-rose-200 rounded-lg flex items-center justify-between">
+                                        <div>
+                                          <div className="text-[10px] uppercase font-bold text-rose-800">Tổng xuất</div>
+                                          <div className="text-sm font-extrabold font-mono text-rose-700 mt-0.5">-{totalExport} {p.unit}</div>
+                                        </div>
+                                        <ArrowUpRight className="w-5 h-5 text-rose-600" />
+                                      </div>
+
+                                      <div className="p-2.5 bg-purple-50/70 border border-purple-200 rounded-lg flex items-center justify-between">
+                                        <div>
+                                          <div className="text-[10px] uppercase font-bold text-purple-800">Số chứng từ</div>
+                                          <div className="text-sm font-extrabold font-mono text-purple-700 mt-0.5">{ledger.length} lượt</div>
+                                        </div>
+                                        <FileText className="w-5 h-5 text-purple-600" />
+                                      </div>
+
+                                      <div className="p-2.5 bg-blue-50/70 border border-blue-200 rounded-lg flex items-center justify-between">
+                                        <div>
+                                          <div className="text-[10px] uppercase font-bold text-blue-800">Tồn hiện tại</div>
+                                          <div className="text-sm font-extrabold font-mono text-blue-700 mt-0.5">{p.stock} {p.unit}</div>
+                                        </div>
+                                        <Package className="w-5 h-5 text-blue-600" />
+                                      </div>
+                                    </div>
+
+                                    {/* Ledger Table */}
+                                    <div className="overflow-x-auto rounded-lg border border-gray-200">
+                                      <table className="w-full text-left border-collapse min-w-[700px]">
+                                        <thead className="bg-gray-100 text-gray-700 font-bold border-b border-gray-200">
+                                          <tr>
+                                            <th className="p-2.5 border-r border-gray-200 whitespace-nowrap">Thời gian</th>
+                                            <th className="p-2.5 border-r border-gray-200 whitespace-nowrap">Mã chứng từ</th>
+                                            <th className="p-2.5 border-r border-gray-200 whitespace-nowrap">Loại chứng từ</th>
+                                            <th className="p-2.5 border-r border-gray-200 whitespace-nowrap">Đối tác / Tác nhân</th>
+                                            <th className="p-2.5 border-r border-gray-200 text-right whitespace-nowrap">Đơn giá</th>
+                                            <th className="p-2.5 border-r border-gray-200 text-right whitespace-nowrap">Số lượng</th>
+                                            <th className="p-2.5 border-r border-gray-200 text-right whitespace-nowrap">Tồn cuối</th>
+                                            <th className="p-2.5 whitespace-nowrap">Ghi chú</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-200 text-gray-700 bg-white">
+                                          {filteredLedger.length === 0 ? (
+                                            <tr>
+                                              <td colSpan={8} className="text-center py-8 text-gray-400 italic">
+                                                Không tìm thấy chứng từ nào liên quan đến sản phẩm này.
+                                              </td>
+                                            </tr>
+                                          ) : (
+                                            filteredLedger.map((entry) => {
+                                              const isSale = entry.docType === 'Bán hàng';
+                                              const isImport = entry.docType === 'Nhập hàng';
+                                              const isCheck = entry.docType === 'Kiểm kho';
+                                              const isReturn = entry.docType === 'Trả hàng';
+
+                                              return (
+                                                <tr key={entry.id} className="hover:bg-slate-50 transition-colors">
+                                                  <td className="p-2.5 border-r border-gray-100 font-mono text-gray-600 text-[11px] whitespace-nowrap">
+                                                    {entry.time}
+                                                  </td>
+                                                  <td className="p-2.5 border-r border-gray-100 font-mono font-bold text-blue-600 whitespace-nowrap">
+                                                    <button
+                                                      type="button"
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setSelectedDocDetail({ entry, product: p });
+                                                      }}
+                                                      className="hover:underline hover:text-blue-800 text-left font-bold cursor-pointer transition-colors"
+                                                      title="Nhấn để xem chi tiết chứng từ"
+                                                    >
+                                                      {entry.docCode}
+                                                    </button>
+                                                  </td>
+                                                  <td className="p-2.5 border-r border-gray-100 whitespace-nowrap">
+                                                    {isSale && (
+                                                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                                                        <ShoppingCart className="w-3 h-3 mr-1" /> Bán hàng
+                                                      </span>
+                                                    )}
+                                                    {isImport && (
+                                                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                        <Truck className="w-3 h-3 mr-1" /> Nhập hàng
+                                                      </span>
+                                                    )}
+                                                    {isCheck && (
+                                                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                                        <ClipboardCheck className="w-3 h-3 mr-1" /> Kiểm kho
+                                                      </span>
+                                                    )}
+                                                    {isReturn && (
+                                                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                                                        <RefreshCw className="w-3 h-3 mr-1" /> Trả hàng
+                                                      </span>
+                                                    )}
+                                                  </td>
+                                                  <td className="p-2.5 border-r border-gray-100 font-medium text-gray-900">
+                                                    {entry.partner}
+                                                  </td>
+                                                  <td className="p-2.5 border-r border-gray-100 text-right font-mono text-gray-800 whitespace-nowrap">
+                                                    {entry.unitPrice ? `${entry.unitPrice.toLocaleString('vi-VN')}đ` : '0đ'}
+                                                  </td>
+                                                  <td className="p-2.5 border-r border-gray-100 text-right font-mono font-extrabold whitespace-nowrap">
+                                                    {entry.changeQty > 0 ? (
+                                                      <span className="text-emerald-600">+{entry.changeQty}</span>
+                                                    ) : (
+                                                      <span className="text-rose-600">{entry.changeQty}</span>
+                                                    )}
+                                                  </td>
+                                                  <td className="p-2.5 border-r border-gray-100 text-right font-mono font-bold text-gray-900 whitespace-nowrap">
+                                                    {entry.endingStock}
+                                                  </td>
+                                                  <td className="p-2.5 text-gray-500 max-w-[200px] truncate">
+                                                    {entry.note}
+                                                  </td>
+                                                </tr>
+                                              );
+                                            })
+                                          )}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
 
                               {activeTab === 'stock' && (
                                 <div className="text-xs text-gray-700 space-y-2">
@@ -908,6 +1223,172 @@ export const GoodsModal: React.FC<GoodsModalProps> = ({
                 className="px-5 py-2 bg-[#1e0b54] hover:bg-[#15073c] text-white rounded-md text-xs font-bold shadow-md"
               >
                 {editingProduct ? 'Lưu thay đổi vào Firestore' : 'Tạo hàng hóa vào Firestore'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Document Detail Popup Modal */}
+      {selectedDocDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden border border-gray-200 animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="flex justify-between items-center px-6 py-4 bg-slate-900 text-white">
+              <div className="flex items-center space-x-3">
+                <FileText className="w-5 h-5 text-blue-400" />
+                <div>
+                  <h3 className="font-bold text-base flex items-center space-x-2">
+                    <span>Chi tiết chứng từ {selectedDocDetail.entry.docCode}</span>
+                  </h3>
+                  <p className="text-xs text-slate-300 font-mono mt-0.5">
+                    Thời gian lập: {selectedDocDetail.entry.time}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedDocDetail(null)}
+                className="p-1 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-5 max-h-[80vh] overflow-y-auto text-xs text-gray-800">
+              {/* Type & Status Header Row */}
+              <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                <div className="flex items-center space-x-2">
+                  <span className="font-semibold text-gray-500">Loại chứng từ:</span>
+                  <span className={`px-2.5 py-1 rounded-md font-bold text-xs inline-flex items-center ${
+                    selectedDocDetail.entry.docType === 'Bán hàng' ? 'bg-rose-100 text-rose-800 border border-rose-200' :
+                    selectedDocDetail.entry.docType === 'Nhập hàng' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
+                    selectedDocDetail.entry.docType === 'Kiểm kho' ? 'bg-amber-100 text-amber-800 border border-amber-200' :
+                    'bg-blue-100 text-blue-800 border border-blue-200'
+                  }`}>
+                    {selectedDocDetail.entry.docType === 'Bán hàng' && <ShoppingCart className="w-3.5 h-3.5 mr-1" />}
+                    {selectedDocDetail.entry.docType === 'Nhập hàng' && <Truck className="w-3.5 h-3.5 mr-1" />}
+                    {selectedDocDetail.entry.docType === 'Kiểm kho' && <ClipboardCheck className="w-3.5 h-3.5 mr-1" />}
+                    {selectedDocDetail.entry.docType === 'Trả hàng' && <RefreshCw className="w-3.5 h-3.5 mr-1" />}
+                    {selectedDocDetail.entry.docType}
+                  </span>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <span className="font-semibold text-gray-500">Trạng thái:</span>
+                  <span className="px-2.5 py-1 rounded-md font-bold text-xs bg-emerald-100 text-emerald-800 border border-emerald-200 inline-flex items-center">
+                    <CheckCircle2 className="w-3.5 h-3.5 mr-1 text-emerald-600" />
+                    Đã ghi sổ kho
+                  </span>
+                </div>
+              </div>
+
+              {/* Document Meta Info Grid */}
+              <div className="grid grid-cols-2 gap-4 bg-white p-3 rounded-lg border border-gray-100 shadow-xs">
+                <div>
+                  <span className="text-gray-500 block text-[11px]">Đối tác / Khách hàng / NCC:</span>
+                  <span className="font-bold text-gray-900 text-sm mt-0.5 block">
+                    {selectedDocDetail.entry.partner}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-gray-500 block text-[11px]">Kho / Chi nhánh thực hiện:</span>
+                  <span className="font-semibold text-gray-800 text-xs mt-0.5 block">
+                    Tổng Kho Chống Thấm 36
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-gray-500 block text-[11px]">Người lập phiếu:</span>
+                  <span className="font-medium text-gray-800 block">Chống Thấm 36</span>
+                </div>
+
+                <div>
+                  <span className="text-gray-500 block text-[11px]">Ghi chú chứng từ:</span>
+                  <span className="font-medium text-gray-700 italic block">
+                    {selectedDocDetail.entry.note || 'Không có ghi chú.'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Items Table */}
+              <div className="space-y-2">
+                <div className="font-bold text-gray-800 text-xs flex justify-between items-center">
+                  <span>Danh sách hàng hóa ảnh hưởng:</span>
+                  <span className="text-gray-500 font-normal">Tồn sau chứng từ: <strong className="font-mono text-gray-900">{selectedDocDetail.entry.endingStock} {selectedDocDetail.product.unit}</strong></span>
+                </div>
+
+                <div className="border border-gray-200 rounded-lg overflow-hidden">
+                  <table className="w-full text-left">
+                    <thead className="bg-gray-100 text-gray-700 font-bold border-b border-gray-200">
+                      <tr>
+                        <th className="p-2.5 border-r border-gray-200">Mã hàng</th>
+                        <th className="p-2.5 border-r border-gray-200">Tên sản phẩm</th>
+                        <th className="p-2.5 border-r border-gray-200 text-center">ĐVT</th>
+                        <th className="p-2.5 border-r border-gray-200 text-right">Đơn giá</th>
+                        <th className="p-2.5 border-r border-gray-200 text-right">SL thay đổi</th>
+                        <th className="p-2.5 text-right">Thành tiền</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 bg-white">
+                      <tr>
+                        <td className="p-2.5 border-r border-gray-100 font-mono font-bold text-blue-600">
+                          {selectedDocDetail.product.code}
+                        </td>
+                        <td className="p-2.5 border-r border-gray-100 font-semibold text-gray-900">
+                          {selectedDocDetail.product.name}
+                        </td>
+                        <td className="p-2.5 border-r border-gray-100 text-center text-gray-600 font-medium">
+                          {selectedDocDetail.product.unit}
+                        </td>
+                        <td className="p-2.5 border-r border-gray-100 text-right font-mono text-gray-700">
+                          {selectedDocDetail.entry.unitPrice ? `${selectedDocDetail.entry.unitPrice.toLocaleString('vi-VN')}đ` : '0đ'}
+                        </td>
+                        <td className="p-2.5 border-r border-gray-100 text-right font-mono font-extrabold">
+                          {selectedDocDetail.entry.changeQty > 0 ? (
+                            <span className="text-emerald-600">+{selectedDocDetail.entry.changeQty}</span>
+                          ) : (
+                            <span className="text-rose-600">{selectedDocDetail.entry.changeQty}</span>
+                          )}
+                        </td>
+                        <td className="p-2.5 text-right font-mono font-bold text-gray-900">
+                          {(Math.abs(selectedDocDetail.entry.changeQty) * selectedDocDetail.entry.unitPrice).toLocaleString('vi-VN')}đ
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Total Calculation */}
+              <div className="flex justify-end pt-2 border-t border-gray-200">
+                <div className="text-right space-y-1">
+                  <span className="text-gray-500 text-xs">Giá trị giao dịch chứng từ:</span>
+                  <div className="text-lg font-extrabold font-mono text-blue-900">
+                    {(Math.abs(selectedDocDetail.entry.changeQty) * selectedDocDetail.entry.unitPrice).toLocaleString('vi-VN')}đ
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer buttons */}
+            <div className="flex justify-between items-center px-6 py-3 bg-gray-50 border-t border-gray-200">
+              <button
+                onClick={() => {
+                  alert(`Đã gửi lệnh in chứng từ ${selectedDocDetail.entry.docCode}`);
+                }}
+                className="flex items-center px-3.5 py-1.5 border border-gray-300 rounded-lg text-xs font-semibold text-gray-700 hover:bg-white transition-colors"
+              >
+                <Printer className="w-3.5 h-3.5 mr-1.5 text-gray-600" />
+                In chứng từ
+              </button>
+
+              <button
+                onClick={() => setSelectedDocDetail(null)}
+                className="px-5 py-1.5 bg-[#1e0b54] hover:bg-[#15073c] text-white rounded-lg text-xs font-bold transition-colors shadow-xs"
+              >
+                Đóng
               </button>
             </div>
           </div>

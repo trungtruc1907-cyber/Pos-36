@@ -4,5 +4,11 @@ service cloud.firestore {
     match /products/{document=**} {
       allow read, write: if true;
     }
+    match /orders/{document=**} {
+      allow read, write: if true;
+    }
+    match /suppliers/{document=**} {
+      allow read, write: if true;
+    }
   }
 }

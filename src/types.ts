@@ -55,6 +55,7 @@ export interface InvoiceTab {
   title: string;
   cart: CartItem[];
   customerId: string;
+  customerCode?: string;
   customerName: string;
   discount: number;
   surcharge: number;
@@ -65,14 +66,22 @@ export interface InvoiceTab {
 
 export interface Order {
   id: string;
-  orderCode: string;
-  date: string;
-  customerName: string;
-  totalAmount: number;
-  itemsCount: number;
+  orderCode: string;          // Mã hóa đơn (HD009721...)
+  date: string;               // Thời gian (07/08/2026 10:03:12)
+  returnCode?: string;        // Mã trả hàng
+  customerCode?: string;      // Mã KH (KH000009, TS...)
+  customerName: string;       // Khách hàng (Khách lẻ...)
+  subtotal: number;           // Tổng tiền hàng
+  discount: number;           // Giảm giá
+  totalAmount: number;        // Tổng sau giảm giá
+  amountPaid: number;         // Khách đã trả
+  itemsCount: number;         // Số lượng
   paymentMethod: PaymentMethod;
   status: 'Đã thanh toán' | 'Đã hủy' | 'Trả hàng';
   items: CartItem[];
+  note?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Customer {
@@ -84,6 +93,29 @@ export interface Customer {
   orderCount: number;
 }
 
+export interface Supplier {
+  id: string;
+  code: string;           // Mã nhà cung cấp (NCC000048)
+  name: string;           // Tên nhà cung cấp (Cường Việt NA)
+  phone: string;          // Điện thoại (0975325757)
+  email?: string;         // Email
+  currentDebt: number;    // Nợ cần trả hiện tại
+  totalPurchased: number; // Tổng mua
+  address?: string;       // Địa chỉ
+  note?: string;          // Ghi chú
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface PurchaseOrderItem {
+  productCode?: string;
+  productName?: string;
+  quantity: number;
+  unitPrice: number;
+  discount?: number;
+  importPrice?: number;
+}
+
 export interface PurchaseOrder {
   id: string;
   code: string;
@@ -91,7 +123,13 @@ export interface PurchaseOrder {
   date: string;
   totalAmount: number;
   itemsCount: number;
-  status: 'Đã nhập hàng' | 'Đã thanh toán' | 'Đang xử lý';
+  status: 'Đã nhập hàng' | 'Đã thanh toán' | 'Đang xử lý' | 'Phiếu tạm';
+  creator?: string;
+  buyer?: string;
+  items?: PurchaseOrderItem[];
+  discount?: number;
+  paidAmount?: number;
+  note?: string;
 }
 
 export interface ActivityLog {
