@@ -1,11 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ViewMode, Product, Customer, Order, ActivityLog, CartItem, PaymentMethod } from './types';
 import { 
-  INITIAL_PRODUCTS, 
   INITIAL_CUSTOMERS, 
   INITIAL_ORDERS, 
-  INITIAL_ACTIVITY_LOGS 
+  INITIAL_ACTIVITY_LOGS,
+  INITIAL_PURCHASES 
 } from './data/mockData';
+import {
+  subscribeProducts,
+  addProduct,
+  updateProduct
+} from './lib/productsService';
 
 import { Header } from './components/Header';
 import { DashboardView } from './components/Dashboard/DashboardView';
@@ -21,10 +26,26 @@ export default function App() {
   const [currentView, setCurrentView] = useState<ViewMode>('dashboard');
 
   // Application Persistent State
-  const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState<boolean>(true);
   const [customers, setCustomers] = useState<Customer[]>(INITIAL_CUSTOMERS);
   const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>(INITIAL_ACTIVITY_LOGS);
+
+  // Subscribe to Firebase Firestore for products real-time data
+  useEffect(() => {
+    const unsubscribe = subscribeProducts(
+      (firebaseProducts) => {
+        setProducts(firebaseProducts);
+        setLoadingProducts(false);
+      },
+      (error) => {
+        console.error('Firebase error:', error);
+        setLoadingProducts(false);
+      }
+    );
+    return () => unsubscribe();
+  }, []);
 
   // Daily totals
   const [todayRevenue, setTodayRevenue] = useState<number>(1410000);
@@ -46,12 +67,20 @@ export default function App() {
   } | null>(null);
 
   // Handlers
-  const handleAddNewProduct = (newProduct: Product) => {
-    setProducts([newProduct, ...products]);
+  const handleAddNewProduct = async (newProduct: Product) => {
+    try {
+      await addProduct(newProduct);
+    } catch (err) {
+      console.error('Failed to add product to Firestore:', err);
+    }
   };
 
-  const handleUpdateProduct = (updatedProduct: Product) => {
-    setProducts(products.map((p) => (p.id === updatedProduct.id ? updatedProduct : p)));
+  const handleUpdateProduct = async (updatedProduct: Product) => {
+    try {
+      await updateProduct(updatedProduct.id, updatedProduct);
+    } catch (err) {
+      console.error('Failed to update product in Firestore:', err);
+    }
   };
 
   const handleAddNewCustomer = (newCust: Customer) => {
@@ -162,7 +191,7 @@ export default function App() {
             />
           )}
 
-          {currentView === 'goods' && (
+          {(currentView === 'goods' || currentView === 'stock-check') && (
             <GoodsModal
               products={products}
               onAddProduct={handleAddNewProduct}
@@ -170,16 +199,21 @@ export default function App() {
             />
           )}
 
-          {currentView === 'orders' && (
+          {(currentView === 'orders' || currentView === 'returns' || currentView === 'purchases' || currentView === 'purchase-returns') && (
             <OrdersModal
               orders={orders}
+              purchases={INITIAL_PURCHASES}
+              currentView={currentView}
+              onSelectView={(v) => setCurrentView(v)}
               onReprintOrder={handleReprintOrder}
             />
           )}
 
-          {currentView === 'customers' && (
+          {(currentView === 'customers' || currentView === 'suppliers' || currentView === 'employees' || currentView === 'promotions') && (
             <CustomersModal
               customers={customers}
+              currentView={currentView}
+              onSelectView={(v) => setCurrentView(v)}
               onAddCustomer={handleAddNewCustomer}
             />
           )}

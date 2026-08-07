@@ -2,8 +2,15 @@ export type ViewMode =
   | 'dashboard' 
   | 'pos' 
   | 'goods' 
+  | 'stock-check'
+  | 'suppliers'
+  | 'purchases'
+  | 'purchase-returns'
   | 'orders' 
+  | 'returns'
   | 'customers' 
+  | 'promotions'
+  | 'employees'
   | 'cashbook' 
   | 'reports' 
   | 'online' 
@@ -13,13 +20,27 @@ export type PaymentMethod = 'cash' | 'transfer' | 'card' | 'wallet';
 
 export interface Product {
   id: string;
-  code: string;
-  name: string;
-  unit: string;
-  price: number;
-  costPrice: number;
-  stock: number;
-  category: string;
+  loaiHang?: string;        // Loại hàng (Dịch vụ / Hàng hóa)
+  nhomHang?: string;        // Nhóm hàng (3 Cấp)
+  code: string;             // Mã hàng
+  maVach?: string;          // Mã vạch
+  name: string;             // Tên hàng
+  brand?: string;            // Thương hiệu
+  price: number;            // Giá bán
+  costPrice: number;        // Giá vốn
+  stock: number;            // Tồn kho
+  unit: string;             // ĐVT
+  maDvtCoBan?: string;      // Mã ĐVT Cơ bản
+  quyDoi?: number;          // Quy đổi
+  imageUrl?: string;        // Hình ảnh (url)
+  tichDiem?: number;        // Tích điểm (1/0)
+  dangKinhDoanh?: number;    // Đang kinh doanh (1/0)
+  duocBanTrucTiep?: number; // Được bán trực tiếp (1/0)
+  description?: string;     // Mô tả
+  location?: string;        // Vị trí
+  category: string;         // Nhóm hàng (đồng bộ với UI)
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface CartItem {
@@ -61,6 +82,16 @@ export interface Customer {
   address?: string;
   totalSpent: number;
   orderCount: number;
+}
+
+export interface PurchaseOrder {
+  id: string;
+  code: string;
+  supplierName: string;
+  date: string;
+  totalAmount: number;
+  itemsCount: number;
+  status: 'Đã nhập hàng' | 'Đã thanh toán' | 'Đang xử lý';
 }
 
 export interface ActivityLog {

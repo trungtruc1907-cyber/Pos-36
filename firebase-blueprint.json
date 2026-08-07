@@ -1,0 +1,44 @@
+{
+  "entities": {
+    "products": {
+      "title": "Danh sách hàng hóa",
+      "description": "Bảng quản lý danh sách sản phẩm và hàng hóa vật liệu chống thấm",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "ID sản phẩm" },
+        "loaiHang": { "type": "string", "description": "Loại hàng (Dịch vụ / Hàng hóa)" },
+        "nhomHang": { "type": "string", "description": "Nhóm hàng 3 cấp" },
+        "code": { "type": "string", "description": "Mã hàng (Mã SKU)" },
+        "maVach": { "type": "string", "description": "Mã vạch" },
+        "name": { "type": "string", "description": "Tên sản phẩm / hàng hóa" },
+        "brand": { "type": "string", "description": "Thương hiệu" },
+        "price": { "type": "number", "description": "Giá bán (VNĐ)" },
+        "costPrice": { "type": "number", "description": "Giá vốn (VNĐ)" },
+        "stock": { "type": "number", "description": "Tồn kho" },
+        "unit": { "type": "string", "description": "Đơn vị tính (ĐVT)" },
+        "maDvtCoBan": { "type": "string", "description": "Mã ĐVT cơ bản" },
+        "quyDoi": { "type": "number", "description": "Tỷ lệ quy đổi" },
+        "imageUrl": { "type": "string", "description": "Đường dẫn hình ảnh" },
+        "tichDiem": { "type": "number", "description": "Cho phép tích điểm (1: Có, 0: Không)" },
+        "dangKinhDoanh": { "type": "number", "description": "Đang kinh doanh (1: Có, 0: Không)" },
+        "duocBanTrucTiep": { "type": "number", "description": "Được bán trực tiếp (1: Có, 0: Không)" },
+        "description": { "type": "string", "description": "Mô tả sản phẩm" },
+        "location": { "type": "string", "description": "Vị trí trong kho" },
+        "createdAt": { "type": "string", "description": "Thời gian tạo" },
+        "updatedAt": { "type": "string", "description": "Thời gian cập nhật" }
+      },
+      "required": ["code", "name", "price", "unit"]
+    }
+  },
+  "security": {
+    "rules": [
+      {
+        "collection": "products",
+        "allow": {
+          "read": "true",
+          "write": "true"
+        }
+      }
+    ]
+  }
+}
