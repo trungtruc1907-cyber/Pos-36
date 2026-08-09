@@ -488,17 +488,17 @@ export const INITIAL_PRODUCTS: Product[] = [
 ];
 
 export const INITIAL_CUSTOMERS: Customer[] = [
-  { id: 'c1', name: 'Chống Thấm 36', phone: '0988363636', address: 'Thanh Hóa', totalSpent: 185000000, orderCount: 42 },
-  { id: 'c2', name: 'TRƯỜNG SƠN', phone: '0912345678', address: 'TP Thanh Hóa', totalSpent: 26000000, orderCount: 8 },
-  { id: 'c3', name: 'A Tài - Nông Cống', phone: '0973111222', address: 'Nông Cống, Thanh Hóa', totalSpent: 11100000, orderCount: 5 },
-  { id: 'c4', name: 'Chị Xoan Diện', phone: '0965333444', address: 'Bỉm Sơn', totalSpent: 7000000, orderCount: 3 },
-  { id: 'c5', name: 'A Khanh', phone: '0942555666', address: 'Sầm Sơn', totalSpent: 3300000, orderCount: 2 },
-  { id: 'c6', name: 'Anh Linh - Jappont', phone: '0936777888', address: 'Hà Trung', totalSpent: 2900000, orderCount: 2 },
-  { id: 'c7', name: 'Khách lẻ', phone: '', address: '', totalSpent: 2800000, orderCount: 12 },
-  { id: 'c8', name: 'Anh Nội - Thiệu Trung (sơn)', phone: '0981999000', address: 'Thiệu Hóa', totalSpent: 2300000, orderCount: 2 },
-  { id: 'c9', name: 'Công ty Khải Hoàn', phone: '02373888999', address: 'KCN Lễ Môn', totalSpent: 1800000, orderCount: 1 },
-  { id: 'c10', name: 'Thắng Bôn', phone: '0915123123', address: 'Đông Sơn', totalSpent: 1800000, orderCount: 1 },
-  { id: 'c11', name: 'Linh - Nga Sơn', phone: '0944888777', address: 'Nga Sơn', totalSpent: 1700000, orderCount: 1 },
+  { id: 'c1', code: 'KH000100', name: 'Chống Thấm 36', phone: '0988363636', address: 'Thanh Hóa', email: 'chongtham36@gmail.com', creator: 'Chống Thấm 36', createdAt: '01/08/2026', customerGroup: 'Đại lý', totalSpent: 185000000, orderCount: 42, debt: 0, points: 1850 },
+  { id: 'c2', code: 'KH000101', name: 'TRƯỜNG SƠN', phone: '0912345678', address: 'TP Thanh Hóa', creator: 'Chống Thấm 36', createdAt: '02/08/2026', totalSpent: 26000000, orderCount: 8, debt: 0, points: 260 },
+  { id: 'c3', code: 'KH000102', name: 'A Tài - Nông Cống', phone: '0973111222', address: 'Nông Cống, Thanh Hóa', creator: 'Chống Thấm 36', createdAt: '02/08/2026', totalSpent: 11100000, orderCount: 5, debt: 0, points: 111 },
+  { id: 'c4', code: 'KH000103', name: 'Chị Xoan Diện', phone: '0965333444', address: 'Bỉm Sơn', creator: 'Chống Thấm 36', createdAt: '03/08/2026', totalSpent: 7000000, orderCount: 3, debt: 0, points: 70 },
+  { id: 'c5', code: 'KH000200', name: 'A Khanh', phone: '0942555666', address: 'Sầm Sơn', creator: 'Chống Thấm 36', createdAt: '03/08/2026', totalSpent: 3300000, orderCount: 2, debt: 0, points: 33 },
+  { id: 'c6', code: 'KH000300', name: 'Anh Linh - Jappont', phone: '', address: '', email: '', creator: 'Chống Thấm 36', createdAt: '03/08/2026', customerGroup: 'Chưa có', totalSpent: 2900000, orderCount: 2, debt: 0, points: 29 },
+  { id: 'c7', code: 'KH000009', name: 'Khách lẻ', phone: '', address: '', creator: 'Chống Thấm 36', createdAt: '01/08/2026', totalSpent: 2800000, orderCount: 12, debt: 0, points: 28 },
+  { id: 'c8', code: 'KH000301', name: 'Anh Nội - Thiệu Trung (sơn)', phone: '0981999000', address: 'Thiệu Hóa', creator: 'Chống Thấm 36', createdAt: '04/08/2026', totalSpent: 2300000, orderCount: 2, debt: 0, points: 23 },
+  { id: 'c9', code: 'KH000302', name: 'Công ty Khải Hoàn', phone: '02373888999', address: 'KCN Lễ Môn', creator: 'Chống Thấm 36', createdAt: '05/08/2026', totalSpent: 1800000, orderCount: 1, debt: 0, points: 18 },
+  { id: 'c10', code: 'KH000303', name: 'Thắng Bôn', phone: '0915123123', address: 'Đông Sơn', creator: 'Chống Thấm 36', createdAt: '06/08/2026', totalSpent: 1800000, orderCount: 1, debt: 0, points: 18 },
+  { id: 'c11', code: 'KH000304', name: 'Linh - Nga Sơn', phone: '0944888777', address: 'Nga Sơn', creator: 'Chống Thấm 36', createdAt: '06/08/2026', totalSpent: 1700000, orderCount: 1, debt: 0, points: 17 },
 ];
 
 export const INITIAL_ACTIVITY_LOGS: ActivityLog[] = [

@@ -12,7 +12,8 @@ import {
 } from './lib/productsService';
 import {
   subscribeOrders,
-  addOrder
+  addOrder,
+  updateOrder
 } from './lib/ordersService';
 import {
   subscribeSuppliers,
@@ -20,6 +21,12 @@ import {
   updateSupplier,
   deleteSupplier
 } from './lib/suppliersService';
+import {
+  subscribeCustomers,
+  addCustomer,
+  updateCustomer,
+  deleteCustomer
+} from './lib/customersService';
 import { getDashboardStats } from './utils/dashboardUtils';
 
 import { Header } from './components/Header';
@@ -56,6 +63,19 @@ export default function App() {
       (error) => {
         console.error('Firebase error:', error);
         setLoadingProducts(false);
+      }
+    );
+    return () => unsubscribe();
+  }, []);
+
+  // Subscribe to Firebase Firestore for customers real-time data
+  useEffect(() => {
+    const unsubscribe = subscribeCustomers(
+      (firebaseCustomers) => {
+        setCustomers(firebaseCustomers);
+      },
+      (error) => {
+        console.error('Firebase customers error:', error);
       }
     );
     return () => unsubscribe();
@@ -126,8 +146,39 @@ export default function App() {
     }
   };
 
-  const handleAddNewCustomer = (newCust: Customer) => {
-    setCustomers([newCust, ...customers]);
+  const handleAddNewCustomer = async (newCust: Customer) => {
+    try {
+      const { id, ...custData } = newCust;
+      const created = await addCustomer(custData);
+      setCustomers((prev) => [created, ...prev.filter((c) => c.id !== id)]);
+    } catch (err) {
+      console.error('Failed to add customer to Firestore:', err);
+      setCustomers((prev) => [newCust, ...prev]);
+    }
+  };
+
+  const handleUpdateCustomer = async (id: string, updates: Partial<Customer>) => {
+    try {
+      await updateCustomer(id, updates);
+      setCustomers((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, ...updates } : c))
+      );
+    } catch (err) {
+      console.error('Failed to update customer in Firestore:', err);
+      setCustomers((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, ...updates } : c))
+      );
+    }
+  };
+
+  const handleDeleteCustomer = async (id: string) => {
+    try {
+      await deleteCustomer(id);
+      setCustomers((prev) => prev.filter((c) => c.id !== id));
+    } catch (err) {
+      console.error('Failed to delete customer in Firestore:', err);
+      setCustomers((prev) => prev.filter((c) => c.id !== id));
+    }
   };
 
   const handleAddNewSupplier = async (newSupp: Omit<Supplier, 'id'>) => {
@@ -202,6 +253,58 @@ export default function App() {
         }
       }
 
+      // 3. Automatically update customer debt & stats in Firestore database
+      const unpaidDebt = Math.max(0, checkoutData.totalAmount - checkoutData.amountPaid);
+      const targetCustomer = customers.find(
+        (c) =>
+          (checkoutData.customerCode && c.code === checkoutData.customerCode) ||
+          c.name.toLowerCase() === checkoutData.customerName.toLowerCase() ||
+          (c.id === checkoutData.customerCode)
+      );
+
+      if (targetCustomer) {
+        const updatedDebt = (targetCustomer.debt || 0) + unpaidDebt;
+        const updatedTotalSpent = (targetCustomer.totalSpent || 0) + checkoutData.totalAmount;
+        const updatedOrderCount = (targetCustomer.orderCount || 0) + 1;
+        const updatedPoints = (targetCustomer.points || 0) + Math.floor(checkoutData.totalAmount / 100000);
+
+        await updateCustomer(targetCustomer.id, {
+          debt: updatedDebt,
+          totalSpent: updatedTotalSpent,
+          orderCount: updatedOrderCount,
+          points: updatedPoints,
+        });
+
+        // Update local customer state immediately
+        setCustomers((prev) =>
+          prev.map((c) =>
+            c.id === targetCustomer.id
+              ? {
+                  ...c,
+                  debt: updatedDebt,
+                  totalSpent: updatedTotalSpent,
+                  orderCount: updatedOrderCount,
+                  points: updatedPoints,
+                }
+              : c
+          )
+        );
+      } else if (checkoutData.customerName && checkoutData.customerName !== 'Khách lẻ') {
+        // Create new customer record in Firestore if not existing
+        const newCustData: Omit<Customer, 'id'> = {
+          code: checkoutData.customerCode || `KH${Date.now().toString().slice(-6)}`,
+          name: checkoutData.customerName,
+          phone: '',
+          address: '',
+          totalSpent: checkoutData.totalAmount,
+          orderCount: 1,
+          debt: unpaidDebt,
+          points: Math.floor(checkoutData.totalAmount / 100000),
+        };
+        const createdCust = await addCustomer(newCustData);
+        setCustomers((prev) => [createdCust, ...prev]);
+      }
+
       // Add activity log
       const newLog: ActivityLog = {
         id: `log-${Date.now()}`,
@@ -245,7 +348,20 @@ export default function App() {
       amountPaid: ord.totalAmount,
       paymentMethod: ord.paymentMethod,
       totalAmount: ord.totalAmount,
+      note: ord.note,
     });
+  };
+
+  // Update order (note, status, etc.) in Firestore
+  const handleUpdateOrder = async (id: string, updates: Partial<Order>) => {
+    try {
+      await updateOrder(id, updates);
+      setOrders((prev) =>
+        prev.map((o) => (o.id === id ? { ...o, ...updates } : o))
+      );
+    } catch (err) {
+      console.error('Failed to update order in Firestore:', err);
+    }
   };
 
   return (
@@ -299,6 +415,7 @@ export default function App() {
               currentView={currentView}
               onSelectView={(v) => setCurrentView(v)}
               onReprintOrder={handleReprintOrder}
+              onUpdateOrder={handleUpdateOrder}
               onAddPurchase={(p) => setPurchases((prev) => [p, ...prev])}
             />
           )}
@@ -307,9 +424,12 @@ export default function App() {
             <CustomersModal
               customers={customers}
               suppliers={suppliers}
+              orders={orders}
               currentView={currentView}
               onSelectView={(v) => setCurrentView(v)}
               onAddCustomer={handleAddNewCustomer}
+              onUpdateCustomer={handleUpdateCustomer}
+              onDeleteCustomer={handleDeleteCustomer}
               onAddSupplier={handleAddNewSupplier}
               onUpdateSupplier={handleUpdateSupplier}
               onDeleteSupplier={handleDeleteSupplier}

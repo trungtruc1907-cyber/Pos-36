@@ -3,6 +3,7 @@ import {
   doc,
   getDocs,
   setDoc,
+  updateDoc,
   onSnapshot,
   writeBatch
 } from 'firebase/firestore';
@@ -446,4 +447,15 @@ export async function addOrder(orderData: Omit<Order, 'id'>): Promise<string> {
 
   await setDoc(docRef, payload);
   return orderId;
+}
+
+/**
+ * Update an existing order in Firestore
+ */
+export async function updateOrder(id: string, updates: Partial<Order>): Promise<void> {
+  const docRef = doc(db, ORDERS_COLLECTION, id);
+  await updateDoc(docRef, {
+    ...updates,
+    updatedAt: new Date().toISOString(),
+  });
 }

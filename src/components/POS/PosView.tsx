@@ -74,6 +74,7 @@ export const PosView: React.FC<PosViewProps> = ({
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
   const [showCatalogDrawer, setShowCatalogDrawer] = useState(false);
+  const [selectedCatalogCategory, setSelectedCatalogCategory] = useState<string>('Tất cả');
   const [posMode, setPosMode] = useState<'fast' | 'standard'>('fast');
   const [mobileTab, setMobileTab] = useState<'cart' | 'checkout'>('cart');
 
@@ -925,11 +926,11 @@ export const PosView: React.FC<PosViewProps> = ({
 
         <div className="flex items-center space-x-4">
           <a
-            href="tel:19006522"
+            href="tel:0915586234"
             className="flex items-center text-blue-700 font-bold hover:underline"
           >
             <PhoneCall className="w-3.5 h-3.5 mr-1 text-blue-600" />
-            Hotline: 1900 6522
+            Hotline: 0915 586 234
           </a>
           <button className="text-gray-500 hover:text-gray-800" title="Trợ giúp">
             <HelpCircle className="w-4 h-4" />
@@ -1009,53 +1010,107 @@ export const PosView: React.FC<PosViewProps> = ({
         </div>
       )}
 
-      {/* Catalog Quick Pick Modal / Drawer */}
-      {showCatalogDrawer && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex justify-end">
-          <div className="bg-white w-full max-w-md h-full flex flex-col p-4 shadow-2xl">
-            <div className="flex justify-between items-center border-b pb-3 mb-3">
-              <h3 className="font-bold text-base text-[#1e0b54] flex items-center">
-                <Package className="w-5 h-5 mr-2 text-amber-500" />
-                Danh mục vật liệu chống thấm
-              </h3>
-              <button
-                onClick={() => setShowCatalogDrawer(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      {/* Catalog Quick Pick Modal / Drawer - Displayed by Product Group */}
+      {showCatalogDrawer && (() => {
+        const uniqueCategories = ['Tất cả', ...Array.from(new Set(products.map((p) => p.category || 'Khác')))];
+        const filteredProducts = selectedCatalogCategory === 'Tất cả'
+          ? products
+          : products.filter((p) => (p.category || 'Khác') === selectedCatalogCategory);
 
-            <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-              {products.map((p) => (
-                <div
-                  key={p.id}
-                  onClick={() => {
-                    handleAddToCart(p);
-                    setShowCatalogDrawer(false);
-                  }}
-                  className="p-3 border border-gray-200 rounded-lg hover:border-[#1e0b54] hover:bg-indigo-50/50 cursor-pointer flex justify-between items-center transition-all"
+        // Group filtered products by category
+        const groupedMap = filteredProducts.reduce((acc, p) => {
+          const cat = p.category || 'Khác';
+          if (!acc[cat]) acc[cat] = [];
+          acc[cat].push(p);
+          return acc;
+        }, {} as Record<string, Product[]>);
+
+        return (
+          <div className="fixed inset-0 bg-black/50 z-50 flex justify-end">
+            <div className="bg-white w-full max-w-lg h-full flex flex-col p-4 shadow-2xl">
+              <div className="flex justify-between items-center border-b pb-3 mb-2">
+                <h3 className="font-bold text-base text-[#1e0b54] flex items-center">
+                  <Package className="w-5 h-5 mr-2 text-amber-500" />
+                  Danh mục theo Nhóm Sản Phẩm
+                </h3>
+                <button
+                  onClick={() => setShowCatalogDrawer(false)}
+                  className="text-gray-400 hover:text-gray-600 p-1"
                 >
-                  <div>
-                    <div className="font-bold text-xs text-gray-900">{p.name}</div>
-                    <div className="text-[11px] text-gray-500 font-mono">
-                      Mã: {p.code} | ĐVT: {p.unit} | Tồn: {p.stock}
-                    </div>
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Category Filter Pills */}
+              <div className="flex gap-1.5 overflow-x-auto pb-2.5 mb-2 no-scrollbar">
+                {uniqueCategories.map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setSelectedCatalogCategory(cat)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                      selectedCatalogCategory === cat
+                        ? 'bg-[#1e0b54] text-white shadow-xs'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+
+              {/* Grouped Product List */}
+              <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+                {Object.keys(groupedMap).length === 0 ? (
+                  <div className="text-center text-xs text-gray-500 py-10">
+                    Không có sản phẩm trong nhóm này.
                   </div>
-                  <div className="text-right ml-2 shrink-0">
-                    <div className="font-extrabold text-sm text-[#1e0b54]">
-                      {p.price.toLocaleString('vi-VN')}đ
+                ) : (
+                  Object.entries(groupedMap).map(([categoryName, productsList]) => {
+                    const catProducts = productsList as Product[];
+                    return (
+                      <div key={categoryName} className="space-y-1.5">
+                        <div className="bg-slate-100 px-3 py-1.5 rounded font-extrabold text-xs text-[#1e0b54] flex justify-between items-center border-l-4 border-amber-500">
+                          <span>{categoryName}</span>
+                          <span className="bg-white px-2 py-0.5 rounded-full text-[10px] text-gray-600 font-mono">
+                            {catProducts.length} sản phẩm
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 gap-1.5">
+                          {catProducts.map((p) => (
+                          <div
+                            key={p.id}
+                            onClick={() => {
+                              handleAddToCart(p);
+                              setShowCatalogDrawer(false);
+                            }}
+                            className="p-2.5 border border-gray-200 rounded-lg hover:border-[#1e0b54] hover:bg-indigo-50/50 cursor-pointer flex justify-between items-center transition-all bg-white"
+                          >
+                            <div>
+                              <div className="font-bold text-xs text-gray-900">{p.name}</div>
+                              <div className="text-[11px] text-gray-500 font-mono">
+                                Mã: {p.code} | ĐVT: {p.unit} | Tồn: {p.stock}
+                              </div>
+                            </div>
+                            <div className="text-right ml-2 shrink-0">
+                              <div className="font-extrabold text-sm text-[#1e0b54]">
+                                {p.price.toLocaleString('vi-VN')}đ
+                              </div>
+                              <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded">
+                                + Thêm
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded">
-                      + Thêm vào giỏ
-                    </span>
-                  </div>
-                </div>
-              ))}
+                  );
+                })
+              )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 };

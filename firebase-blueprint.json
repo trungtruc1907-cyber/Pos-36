@@ -69,6 +69,27 @@
         "createdAt": { "type": "string", "description": "Thời gian tạo" }
       },
       "required": ["code", "name"]
+    },
+    "customers": {
+      "title": "Danh sách Khách hàng",
+      "description": "Bảng quản lý danh sách khách hàng",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "ID khách hàng" },
+        "code": { "type": "string", "description": "Mã khách hàng (VD: KH000100)" },
+        "name": { "type": "string", "description": "Tên khách hàng" },
+        "phone": { "type": "string", "description": "Điện thoại" },
+        "email": { "type": "string", "description": "Email" },
+        "address": { "type": "string", "description": "Địa chỉ" },
+        "creator": { "type": "string", "description": "Người tạo" },
+        "customerGroup": { "type": "string", "description": "Nhóm khách hàng" },
+        "totalSpent": { "type": "number", "description": "Tổng bán" },
+        "orderCount": { "type": "number", "description": "Số lượng đơn hàng" },
+        "debt": { "type": "number", "description": "Nợ cần thu hiện tại" },
+        "points": { "type": "number", "description": "Điểm thưởng" },
+        "createdAt": { "type": "string", "description": "Thời gian tạo" }
+      },
+      "required": ["code", "name"]
     }
   },
   "firestore": {
@@ -83,6 +104,10 @@
     "/suppliers/{supplierId}": {
       "schema": "suppliers",
       "description": "Danh sách nhà cung cấp"
+    },
+    "/customers/{customerId}": {
+      "schema": "customers",
+      "description": "Danh sách khách hàng"
     }
   }
 }

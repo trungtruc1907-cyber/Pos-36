@@ -31,15 +31,22 @@ export const RevenueChartSection: React.FC<RevenueChartSectionProps> = ({ orders
 
   const chartRes = getRevenueChartData(orders, timePeriod, activeTab);
 
+  const bgColors = chartRes.data.map((val) => {
+    if (val === 0) return '#e2e8f0';
+    const maxValInArr = Math.max(...chartRes.data);
+    if (val === maxValInArr && maxValInArr > 0) return '#ffb830';
+    return '#1e0b54';
+  });
+
   const chartData = {
     labels: chartRes.labels,
     datasets: [
       {
         label: 'Doanh thu thuần (tr)',
         data: chartRes.data,
-        backgroundColor: '#1e0b54',
+        backgroundColor: bgColors,
         borderRadius: 4,
-        barThickness: activeTab === 'day' ? 20 : 24,
+        barThickness: activeTab === 'day' ? 24 : 28,
       },
     ],
   };

@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
-import { Customer, Supplier, ViewMode } from '../../types';
+import { Customer, Supplier, Order, ViewMode } from '../../types';
 import { Users, Search, Phone, MapPin, UserPlus, X, Building2, UserCheck, Tag, Mail, Pencil, Trash2, Lock, Edit3 } from 'lucide-react';
 
 interface CustomersModalProps {
   customers: Customer[];
   suppliers?: Supplier[];
+  orders?: Order[];
   currentView?: ViewMode;
   onSelectView?: (view: ViewMode) => void;
   onAddCustomer: (customer: Customer) => void;
+  onUpdateCustomer?: (id: string, updates: Partial<Customer>) => void;
+  onDeleteCustomer?: (id: string) => void;
   onAddSupplier?: (supplier: Omit<Supplier, 'id'>) => void;
   onUpdateSupplier?: (id: string, updates: Partial<Supplier>) => void;
   onDeleteSupplier?: (id: string) => void;
@@ -16,9 +19,12 @@ interface CustomersModalProps {
 export const CustomersModal: React.FC<CustomersModalProps> = ({
   customers,
   suppliers = [],
+  orders = [],
   currentView = 'customers',
   onSelectView,
   onAddCustomer,
+  onUpdateCustomer,
+  onDeleteCustomer,
   onAddSupplier,
   onUpdateSupplier,
   onDeleteSupplier,
@@ -30,8 +36,15 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
   const [expandedSupplierId, setExpandedSupplierId] = useState<string | null>(null);
   const [supplierDetailTab, setSupplierDetailTab] = useState<'info' | 'history' | 'debt'>('info');
 
+  // Expanded row state for customers
+  const [expandedCustomerId, setExpandedCustomerId] = useState<string | null>(null);
+  const [customerDetailTab, setCustomerDetailTab] = useState<'info' | 'history' | 'debt' | 'points'>('info');
+
   // Edit supplier state
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
+  
+  // Edit customer state
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
 
   // Form states for Customer
   const [name, setName] = useState('');
@@ -87,7 +100,9 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
   const filteredCustomers = customers.filter(
     (c) =>
       c.name.toLowerCase().includes(search.toLowerCase()) ||
-      c.phone.includes(search)
+      c.phone.includes(search) ||
+      (c.code && c.code.toLowerCase().includes(search.toLowerCase())) ||
+      (c.address && c.address.toLowerCase().includes(search.toLowerCase()))
   );
 
   const filteredSuppliers = suppliers.filter(
@@ -102,15 +117,28 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
   const totalSupplierDebt = suppliers.reduce((sum, s) => sum + (s.currentDebt || 0), 0);
   const totalSupplierPurchased = suppliers.reduce((sum, s) => sum + (s.totalPurchased || 0), 0);
 
+  // Totals for Customers
+  const totalCustomerOrders = customers.reduce((sum, c) => sum + (c.orderCount || 0), 0);
+  const totalCustomerSpent = customers.reduce((sum, c) => sum + (c.totalSpent || 0), 0);
+  const totalCustomerDebt = customers.reduce((sum, c) => sum + (c.debt || 0), 0);
+
   const handleSaveCustomer = () => {
     if (!name.trim()) return;
+    const nextSeq = customers.length + 300;
+    const code = `KH${String(nextSeq).padStart(6, '0')}`;
     onAddCustomer({
       id: `c-${Date.now()}`,
+      code,
       name: name.trim(),
       phone: phone.trim(),
       address: address.trim(),
+      creator: 'Chống Thấm 36',
+      createdAt: new Date().toLocaleDateString('vi-VN'),
+      customerGroup: 'Chưa có',
       totalSpent: 0,
       orderCount: 0,
+      debt: 0,
+      points: 0,
     });
     setShowAdd(false);
     setName('');
@@ -170,6 +198,15 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
     }
   };
 
+  const toggleExpandCustomer = (id: string) => {
+    if (expandedCustomerId === id) {
+      setExpandedCustomerId(null);
+    } else {
+      setExpandedCustomerId(id);
+      setCustomerDetailTab('info');
+    }
+  };
+
   return (
     <div className="flex-1 bg-[#f3f4f6] p-4 flex flex-col space-y-4 overflow-auto">
       {/* Top Header Row */}
@@ -187,46 +224,55 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
         <div className="flex items-center space-x-3 w-full sm:w-auto justify-between sm:justify-end">
           {onSelectView && (
             <div className="flex items-center space-x-1 bg-gray-100 p-1 rounded-lg border border-gray-200 text-xs font-medium">
-              <button
-                onClick={() => onSelectView('customers')}
-                className={`px-3 py-1.5 rounded-md transition-colors ${
-                  currentView === 'customers'
-                    ? 'bg-[#1e0b54] text-white font-bold shadow-xs'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
-                }`}
-              >
-                Khách hàng
-              </button>
-              <button
-                onClick={() => onSelectView('suppliers')}
-                className={`px-3 py-1.5 rounded-md transition-colors ${
-                  currentView === 'suppliers'
-                    ? 'bg-[#1e0b54] text-white font-bold shadow-xs'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
-                }`}
-              >
-                Nhà cung cấp
-              </button>
-              <button
-                onClick={() => onSelectView('employees')}
-                className={`px-3 py-1.5 rounded-md transition-colors ${
-                  currentView === 'employees'
-                    ? 'bg-[#1e0b54] text-white font-bold shadow-xs'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
-                }`}
-              >
-                Nhân viên
-              </button>
-              <button
-                onClick={() => onSelectView('promotions')}
-                className={`px-3 py-1.5 rounded-md transition-colors ${
-                  currentView === 'promotions'
-                    ? 'bg-[#1e0b54] text-white font-bold shadow-xs'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
-                }`}
-              >
-                Khuyến mãi
-              </button>
+              {currentView === 'suppliers' ? (
+                <>
+                  <button
+                    onClick={() => onSelectView('suppliers')}
+                    className={`px-3 py-1.5 rounded-md transition-colors ${
+                      currentView === 'suppliers'
+                        ? 'bg-[#1e0b54] text-white font-bold shadow-xs'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
+                    }`}
+                  >
+                    Nhà cung cấp
+                  </button>
+                  <button
+                    onClick={() => onSelectView('purchases')}
+                    className="px-3 py-1.5 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-200 transition-colors"
+                  >
+                    Nhập hàng
+                  </button>
+                  <button
+                    onClick={() => onSelectView('purchase-returns')}
+                    className="px-3 py-1.5 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-200 transition-colors"
+                  >
+                    Trả hàng nhập
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => onSelectView('customers')}
+                    className={`px-3 py-1.5 rounded-md transition-colors ${
+                      currentView === 'customers'
+                        ? 'bg-[#1e0b54] text-white font-bold shadow-xs'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
+                    }`}
+                  >
+                    Khách hàng
+                  </button>
+                  <button
+                    onClick={() => onSelectView('promotions')}
+                    className={`px-3 py-1.5 rounded-md transition-colors ${
+                      currentView === 'promotions'
+                        ? 'bg-[#1e0b54] text-white font-bold shadow-xs'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
+                    }`}
+                  >
+                    Khuyến mãi
+                  </button>
+                </>
+              )}
             </div>
           )}
 
@@ -569,47 +615,427 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
             </tbody>
           </table>
         ) : (
-          /* Standard Customer / Employee Table */
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-100 border-b text-gray-600 font-bold uppercase text-[11px]">
-              <tr>
-                <th className="p-3">Tên {currentView === 'employees' ? 'Nhân viên' : 'Khách hàng'}</th>
-                <th className="p-3">Số điện thoại</th>
-                <th className="p-3">Khu vực / Địa chỉ</th>
-                <th className="p-3 text-center">Số giao dịch</th>
-                <th className="p-3 text-right">Tổng giá trị</th>
+          /* Customer / Employee Table with expandable detail view */
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="bg-[#dbeafe] text-gray-900 font-semibold border-b border-gray-300 text-[11px] select-none">
+                <th className="p-2.5 border-r border-gray-300 text-center w-10">
+                  <input type="checkbox" className="rounded border-gray-300" />
+                </th>
+                <th className="p-2.5 border-r border-gray-300 min-w-[120px]">
+                  {currentView === 'employees' ? 'Mã nhân viên' : 'Mã khách hàng'}
+                </th>
+                <th className="p-2.5 border-r border-gray-300 min-w-[180px]">
+                  {currentView === 'employees' ? 'Tên nhân viên' : 'Tên khách hàng'}
+                </th>
+                <th className="p-2.5 border-r border-gray-300 min-w-[120px]">Điện thoại</th>
+                <th className="p-2.5 border-r border-gray-300 min-w-[150px]">Khu vực / Địa chỉ</th>
+                <th className="p-2.5 border-r border-gray-300 text-center min-w-[100px]">Số giao dịch</th>
+                <th className="p-2.5 border-r border-gray-300 text-right min-w-[130px]">Nợ cần thu hiện tại</th>
+                <th className="p-2.5 text-right min-w-[140px]">Tổng bán</th>
+              </tr>
+              {/* Summary Row */}
+              <tr className="bg-white border-b border-gray-200 font-bold text-gray-900 text-xs">
+                <td className="p-2.5 border-r border-gray-200"></td>
+                <td className="p-2.5 border-r border-gray-200"></td>
+                <td className="p-2.5 border-r border-gray-200"></td>
+                <td className="p-2.5 border-r border-gray-200"></td>
+                <td className="p-2.5 border-r border-gray-200"></td>
+                <td className="p-2.5 border-r border-gray-200 text-center font-bold font-mono">
+                  {totalCustomerOrders}
+                </td>
+                <td className="p-2.5 border-r border-gray-200 text-right font-mono font-extrabold text-gray-900">
+                  {totalCustomerDebt.toLocaleString('vi-VN')}
+                </td>
+                <td className="p-2.5 text-right font-mono font-extrabold text-gray-900">
+                  {totalCustomerSpent.toLocaleString('vi-VN')}
+                </td>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filteredCustomers.map((c) => (
-                <tr key={c.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="p-3 font-bold text-gray-900">{c.name}</td>
-                  <td className="p-3 font-mono text-gray-600">
-                    {c.phone ? (
-                      <span className="flex items-center">
-                        <Phone className="w-3 h-3 mr-1 text-gray-400" />
-                        {c.phone}
-                      </span>
-                    ) : (
-                      '-'
-                    )}
-                  </td>
-                  <td className="p-3 text-gray-500">
-                    {c.address ? (
-                      <span className="flex items-center">
-                        <MapPin className="w-3 h-3 mr-1 text-gray-400" />
-                        {c.address}
-                      </span>
-                    ) : (
-                      '-'
-                    )}
-                  </td>
-                  <td className="p-3 text-center font-bold">{c.orderCount}</td>
-                  <td className="p-3 text-right font-extrabold text-[#1e0b54] font-mono">
-                    {c.totalSpent.toLocaleString('vi-VN')}đ
+            <tbody className="divide-y divide-gray-100 font-sans">
+              {filteredCustomers.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="text-center py-8 text-gray-400 italic">
+                    Chưa có thông tin khách hàng nào.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filteredCustomers.map((c, idx) => {
+                  const isExpanded = expandedCustomerId === c.id;
+                  const customerCode = c.code || `KH${String((idx + 1) * 100).padStart(6, '0')}`;
+                  return (
+                    <React.Fragment key={c.id}>
+                      <tr
+                        onClick={() => toggleExpandCustomer(c.id)}
+                        className={`cursor-pointer transition-colors ${
+                          isExpanded
+                            ? 'bg-[#e0f2fe] font-semibold'
+                            : idx % 2 === 1
+                            ? 'bg-[#f8fafc] hover:bg-[#e0f2fe]'
+                            : 'bg-white hover:bg-[#e0f2fe]'
+                        }`}
+                      >
+                        <td className="p-2.5 border-r border-gray-200 text-center" onClick={(e) => e.stopPropagation()}>
+                          <input type="checkbox" className="rounded border-gray-300" />
+                        </td>
+                        <td className="p-2.5 border-r border-gray-200 font-mono text-gray-800 font-medium">
+                          {customerCode}
+                        </td>
+                        <td className="p-2.5 border-r border-gray-200 font-medium text-gray-900">
+                          {c.name}
+                        </td>
+                        <td className="p-2.5 border-r border-gray-200 font-mono text-gray-700">
+                          {c.phone || ''}
+                        </td>
+                        <td className="p-2.5 border-r border-gray-200 text-gray-600">
+                          {c.address || ''}
+                        </td>
+                        <td className="p-2.5 border-r border-gray-200 text-center font-bold text-gray-800">
+                          {c.orderCount}
+                        </td>
+                        <td className="p-2.5 border-r border-gray-200 text-right font-mono font-medium text-gray-900">
+                          {c.debt ? c.debt.toLocaleString('vi-VN') : '0'}
+                        </td>
+                        <td className="p-2.5 text-right font-mono font-medium text-gray-900">
+                          {c.totalSpent ? c.totalSpent.toLocaleString('vi-VN') : '0'}
+                        </td>
+                      </tr>
+
+                      {/* Expanded Row Detail View matching reference image */}
+                      {isExpanded && (
+                        <tr>
+                          <td colSpan={8} className="p-0 bg-[#f8fafc] border-b-2 border-blue-200">
+                            {/* Inner Header Tabs */}
+                            <div className="flex border-b border-gray-200 bg-white px-6 pt-3 text-xs font-semibold text-gray-600">
+                              <button
+                                onClick={() => setCustomerDetailTab('info')}
+                                className={`pb-2.5 px-3 border-b-2 transition-colors ${
+                                  customerDetailTab === 'info'
+                                    ? 'border-blue-600 text-blue-600 font-bold'
+                                    : 'border-transparent hover:text-gray-900'
+                                }`}
+                              >
+                                Thông tin
+                              </button>
+                              <button
+                                onClick={() => setCustomerDetailTab('history')}
+                                className={`pb-2.5 px-3 border-b-2 transition-colors ${
+                                  customerDetailTab === 'history'
+                                    ? 'border-blue-600 text-blue-600 font-bold'
+                                    : 'border-transparent hover:text-gray-900'
+                                }`}
+                              >
+                                Lịch sử bán/trả hàng
+                              </button>
+                              <button
+                                onClick={() => setCustomerDetailTab('debt')}
+                                className={`pb-2.5 px-3 border-b-2 transition-colors ${
+                                  customerDetailTab === 'debt'
+                                    ? 'border-blue-600 text-blue-600 font-bold'
+                                    : 'border-transparent hover:text-gray-900'
+                                }`}
+                              >
+                                Nợ cần thu từ khách
+                              </button>
+                              <button
+                                onClick={() => setCustomerDetailTab('points')}
+                                className={`pb-2.5 px-3 border-b-2 transition-colors ${
+                                  customerDetailTab === 'points'
+                                    ? 'border-blue-600 text-blue-600 font-bold'
+                                    : 'border-transparent hover:text-gray-900'
+                                }`}
+                              >
+                                Lịch sử tích điểm
+                              </button>
+                            </div>
+
+                            {/* Tab Content: Thông tin */}
+                            {customerDetailTab === 'info' && (
+                              <div className="p-6 bg-white space-y-6">
+                                {/* Title and Header metadata */}
+                                <div className="flex justify-between items-start">
+                                  <div className="flex items-start space-x-4">
+                                    {/* Large Circle Avatar Icon */}
+                                    <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center text-blue-500 flex-shrink-0 shadow-inner">
+                                      <svg className="w-10 h-10 fill-current" viewBox="0 0 24 24">
+                                        <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                                      </svg>
+                                    </div>
+
+                                    <div>
+                                      <div className="flex items-baseline space-x-2">
+                                        <h3 className="text-base font-bold text-gray-900">{c.name}</h3>
+                                        <span className="text-xs font-mono text-gray-500 font-medium">{customerCode}</span>
+                                      </div>
+                                      <div className="flex items-center space-x-3 text-xs text-gray-500 mt-2">
+                                        <span>Người tạo: <strong className="text-gray-700 font-semibold">{c.creator || 'Chống Thấm 36'}</strong></span>
+                                        <span className="text-gray-300">|</span>
+                                        <span>
+                                          Ngày tạo:{' '}
+                                          <strong className="text-gray-700 font-semibold">
+                                            {c.createdAt || '03/08/2026'}
+                                          </strong>
+                                        </span>
+                                        <span className="text-gray-300">|</span>
+                                        <span>Nhóm khách: <strong className="text-gray-400 font-normal">{c.customerGroup || 'Chưa có'}</strong></span>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="text-xs font-semibold text-gray-600">
+                                    Tổng Kho Chống Thấm 36
+                                  </div>
+                                </div>
+
+                                {/* Main Fields Grid */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-y-4 gap-x-8 text-xs border-t border-b border-gray-100 py-4">
+                                  <div className="space-y-3">
+                                    <div>
+                                      <span className="block text-gray-500 mb-1">Điện thoại</span>
+                                      <span className={c.phone ? 'font-mono text-gray-900 font-semibold' : 'text-gray-400 font-normal'}>
+                                        {c.phone || 'Chưa có'}
+                                      </span>
+                                    </div>
+                                    <div>
+                                      <span className="block text-gray-500 mb-1">Email</span>
+                                      <span className={c.email ? 'text-gray-900 font-medium' : 'text-gray-400'}>
+                                        {c.email || 'Chưa có'}
+                                      </span>
+                                    </div>
+                                    <div>
+                                      <span className="block text-gray-500 mb-1">Địa chỉ</span>
+                                      <span className={c.address ? 'text-gray-800' : 'text-gray-400'}>
+                                        {c.address || 'Chưa có'}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  <div className="space-y-3">
+                                    <div>
+                                      <span className="block text-gray-500 mb-1">Sinh nhật</span>
+                                      <span className={c.dob ? 'text-gray-900 font-medium' : 'text-gray-400'}>
+                                        {c.dob || 'Chưa có'}
+                                      </span>
+                                    </div>
+                                    <div>
+                                      <span className="block text-gray-500 mb-1">Facebook</span>
+                                      <span className={c.facebook ? 'text-blue-600 font-medium' : 'text-gray-400'}>
+                                        {c.facebook || 'Chưa có'}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  <div className="space-y-3">
+                                    <div>
+                                      <span className="block text-gray-500 mb-1">Giới tính</span>
+                                      <span className={c.gender ? 'text-gray-900 font-medium' : 'text-gray-400'}>
+                                        {c.gender || 'Chưa có'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Additional links & notes */}
+                                <div className="space-y-2 text-xs">
+                                  <button
+                                    type="button"
+                                    onClick={() => alert('Thêm thông tin xuất hóa đơn')}
+                                    className="text-blue-600 hover:underline font-medium block"
+                                  >
+                                    Thêm thông tin xuất hóa đơn
+                                  </button>
+
+                                  <div className="flex items-center text-gray-500 pt-1">
+                                    <Edit3 className="w-3.5 h-3.5 mr-1.5 text-gray-400" />
+                                    <span>{c.note ? c.note : 'Chưa có ghi chú'}</span>
+                                  </div>
+                                </div>
+
+                                {/* Action Buttons */}
+                                <div className="flex justify-between items-center pt-4 border-t border-gray-100">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (window.confirm(`Bạn có chắc chắn muốn xóa khách hàng "${c.name}"?`)) {
+                                        if (onDeleteCustomer) onDeleteCustomer(c.id);
+                                        setExpandedCustomerId(null);
+                                      }
+                                    }}
+                                    className="flex items-center px-3 py-1.5 text-xs text-gray-600 hover:text-red-600 hover:bg-red-50 border border-gray-300 rounded transition-colors"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                                    Xóa
+                                  </button>
+
+                                  <div className="flex items-center space-x-2">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setEditingCustomer({
+                                          ...c,
+                                          code: customerCode,
+                                        });
+                                      }}
+                                      className="flex items-center px-4 py-1.5 text-xs font-bold text-white bg-[#0066ff] hover:bg-blue-700 rounded shadow-xs transition-colors"
+                                    >
+                                      <Pencil className="w-3.5 h-3.5 mr-1.5" />
+                                      Chỉnh sửa
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        alert(`Đã cập nhật trạng thái khách hàng ${c.name}`);
+                                      }}
+                                      className="flex items-center px-3 py-1.5 text-xs font-medium text-gray-700 bg-white hover:bg-gray-50 border border-gray-300 rounded shadow-xs transition-colors"
+                                    >
+                                      <Lock className="w-3.5 h-3.5 mr-1.5 text-gray-500" />
+                                      Ngừng hoạt động
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Tab Content: Lịch sử bán/trả hàng */}
+                            {customerDetailTab === 'history' && (
+                              <div className="p-4 bg-white">
+                                <table className="w-full text-left text-xs border border-gray-200">
+                                  <thead className="bg-gray-50 text-gray-600 font-bold border-b border-gray-200">
+                                    <tr>
+                                      <th className="p-2.5">Mã hóa đơn</th>
+                                      <th className="p-2.5">Thời gian</th>
+                                      <th className="p-2.5">Người bán</th>
+                                      <th className="p-2.5 text-right">Tổng tiền (VNĐ)</th>
+                                      <th className="p-2.5 text-center">Trạng thái</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-gray-100">
+                                    {orders.filter(o => o.customerName === c.name || o.customerCode === c.code || o.customerCode === customerCode).length > 0 ? (
+                                      orders
+                                        .filter(o => o.customerName === c.name || o.customerCode === c.code || o.customerCode === customerCode)
+                                        .map(ord => (
+                                          <tr key={ord.id} className="hover:bg-gray-50">
+                                            <td className="p-2.5 font-mono text-blue-600 font-bold">{ord.orderCode}</td>
+                                            <td className="p-2.5 font-mono text-gray-600">{ord.date}</td>
+                                            <td className="p-2.5 text-gray-800 font-medium">Chống Thấm 36</td>
+                                            <td className="p-2.5 text-right font-mono font-bold text-gray-900">
+                                              {ord.totalAmount.toLocaleString('vi-VN')}đ
+                                            </td>
+                                            <td className="p-2.5 text-center">
+                                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-800">
+                                                {ord.status || 'Đã hoàn thành'}
+                                              </span>
+                                            </td>
+                                          </tr>
+                                        ))
+                                    ) : c.orderCount > 0 ? (
+                                      <tr className="hover:bg-gray-50">
+                                        <td className="p-2.5 font-mono text-blue-600 font-bold">HD009721</td>
+                                        <td className="p-2.5 font-mono text-gray-600">03/08/2026 14:15</td>
+                                        <td className="p-2.5 text-gray-800 font-medium">Chống Thấm 36</td>
+                                        <td className="p-2.5 text-right font-mono font-bold text-gray-900">
+                                          {c.totalSpent.toLocaleString('vi-VN')}đ
+                                        </td>
+                                        <td className="p-2.5 text-center">
+                                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-800">
+                                            Đã thanh toán
+                                          </span>
+                                        </td>
+                                      </tr>
+                                    ) : (
+                                      <tr>
+                                        <td colSpan={5} className="text-center py-6 text-gray-400 italic">
+                                          Chưa có lịch sử bán/trả hàng đối với khách hàng này.
+                                        </td>
+                                      </tr>
+                                    )}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+
+                            {/* Tab Content: Nợ cần thu từ khách */}
+                            {customerDetailTab === 'debt' && (
+                              <div className="p-4 bg-white">
+                                <table className="w-full text-left text-xs border border-gray-200">
+                                  <thead className="bg-gray-50 text-gray-600 font-bold border-b border-gray-200">
+                                    <tr>
+                                      <th className="p-2.5">Mã chứng từ</th>
+                                      <th className="p-2.5">Thời gian</th>
+                                      <th className="p-2.5">Loại</th>
+                                      <th className="p-2.5 text-right">Giá trị (VNĐ)</th>
+                                      <th className="p-2.5 text-right">Nợ cần thu (VNĐ)</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-gray-100">
+                                    {c.debt && c.debt > 0 ? (
+                                      <tr className="hover:bg-gray-50">
+                                        <td className="p-2.5 font-mono text-blue-600 font-bold">HD009720</td>
+                                        <td className="p-2.5 font-mono text-gray-600">03/08/2026 10:20</td>
+                                        <td className="p-2.5 text-gray-800 font-medium">Hóa đơn bán hàng ghi nợ</td>
+                                        <td className="p-2.5 text-right font-mono font-bold text-gray-900">
+                                          {c.totalSpent.toLocaleString('vi-VN')}đ
+                                        </td>
+                                        <td className="p-2.5 text-right font-mono font-extrabold text-red-600">
+                                          {c.debt.toLocaleString('vi-VN')}đ
+                                        </td>
+                                      </tr>
+                                    ) : (
+                                      <tr>
+                                        <td colSpan={5} className="text-center py-6 text-gray-400 italic">
+                                          Không có nợ cần thu từ khách hàng này.
+                                        </td>
+                                      </tr>
+                                    )}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+
+                            {/* Tab Content: Lịch sử tích điểm */}
+                            {customerDetailTab === 'points' && (
+                              <div className="p-4 bg-white">
+                                <table className="w-full text-left text-xs border border-gray-200">
+                                  <thead className="bg-gray-50 text-gray-600 font-bold border-b border-gray-200">
+                                    <tr>
+                                      <th className="p-2.5">Mã chứng từ</th>
+                                      <th className="p-2.5">Thời gian</th>
+                                      <th className="p-2.5 text-center">Tích lũy</th>
+                                      <th className="p-2.5 text-center">Đã dùng</th>
+                                      <th className="p-2.5 text-center">Điểm hiện tại</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-gray-100">
+                                    {c.points && c.points > 0 ? (
+                                      <tr className="hover:bg-gray-50">
+                                        <td className="p-2.5 font-mono text-blue-600 font-bold">HD009721</td>
+                                        <td className="p-2.5 font-mono text-gray-600">03/08/2026 14:15</td>
+                                        <td className="p-2.5 text-center font-bold text-green-600">+{c.points}</td>
+                                        <td className="p-2.5 text-center text-gray-500">0</td>
+                                        <td className="p-2.5 text-center font-bold text-blue-600">{c.points}</td>
+                                      </tr>
+                                    ) : (
+                                      <tr>
+                                        <td colSpan={5} className="text-center py-6 text-gray-400 italic">
+                                          Chưa có lịch sử tích điểm.
+                                        </td>
+                                      </tr>
+                                    )}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })
+              )}
             </tbody>
           </table>
         )}
@@ -722,6 +1148,128 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
                 className="px-4 py-1.5 bg-[#0066ff] hover:bg-blue-700 text-white rounded text-xs font-bold transition-colors"
               >
                 Cập nhật cơ sở dữ liệu
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Customer Modal */}
+      {editingCustomer && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg p-5 max-w-md w-full space-y-3 shadow-xl">
+            <div className="flex justify-between items-center border-b pb-2">
+              <h3 className="font-bold text-[#1e0b54] text-sm">Chỉnh sửa Khách hàng</h3>
+              <button onClick={() => setEditingCustomer(null)}>
+                <X className="w-4 h-4 text-gray-400 hover:text-gray-600" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block text-gray-700 font-semibold mb-1">Mã khách hàng</label>
+                <input
+                  type="text"
+                  value={editingCustomer.code || ''}
+                  onChange={(e) => setEditingCustomer({ ...editingCustomer, code: e.target.value })}
+                  className="w-full p-2 border rounded focus:outline-none focus:border-[#1e0b54]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-semibold mb-1">Tên khách hàng *</label>
+                <input
+                  type="text"
+                  value={editingCustomer.name}
+                  onChange={(e) => setEditingCustomer({ ...editingCustomer, name: e.target.value })}
+                  className="w-full p-2 border rounded focus:outline-none focus:border-[#1e0b54]"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-gray-700 font-semibold mb-1">Điện thoại</label>
+                  <input
+                    type="text"
+                    value={editingCustomer.phone || ''}
+                    onChange={(e) => setEditingCustomer({ ...editingCustomer, phone: e.target.value })}
+                    className="w-full p-2 border rounded focus:outline-none focus:border-[#1e0b54]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-700 font-semibold mb-1">Email</label>
+                  <input
+                    type="email"
+                    value={editingCustomer.email || ''}
+                    onChange={(e) => setEditingCustomer({ ...editingCustomer, email: e.target.value })}
+                    className="w-full p-2 border rounded focus:outline-none focus:border-[#1e0b54]"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-gray-700 font-semibold mb-1">Sinh nhật</label>
+                  <input
+                    type="text"
+                    placeholder="DD/MM/YYYY"
+                    value={editingCustomer.dob || ''}
+                    onChange={(e) => setEditingCustomer({ ...editingCustomer, dob: e.target.value })}
+                    className="w-full p-2 border rounded focus:outline-none focus:border-[#1e0b54]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-700 font-semibold mb-1">Giới tính</label>
+                  <select
+                    value={editingCustomer.gender || ''}
+                    onChange={(e) => setEditingCustomer({ ...editingCustomer, gender: e.target.value })}
+                    className="w-full p-2 border rounded focus:outline-none focus:border-[#1e0b54]"
+                  >
+                    <option value="">Chưa chọn</option>
+                    <option value="Nam">Nam</option>
+                    <option value="Nữ">Nữ</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-semibold mb-1">Địa chỉ</label>
+                <input
+                  type="text"
+                  value={editingCustomer.address || ''}
+                  onChange={(e) => setEditingCustomer({ ...editingCustomer, address: e.target.value })}
+                  className="w-full p-2 border rounded focus:outline-none focus:border-[#1e0b54]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-semibold mb-1">Ghi chú</label>
+                <input
+                  type="text"
+                  value={editingCustomer.note || ''}
+                  onChange={(e) => setEditingCustomer({ ...editingCustomer, note: e.target.value })}
+                  className="w-full p-2 border rounded focus:outline-none focus:border-[#1e0b54]"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-2 pt-3 border-t">
+              <button
+                onClick={() => setEditingCustomer(null)}
+                className="px-3 py-1.5 border rounded text-xs text-gray-600 hover:bg-gray-100 font-medium"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={() => {
+                  if (onUpdateCustomer && editingCustomer) {
+                    onUpdateCustomer(editingCustomer.id, editingCustomer);
+                  }
+                  setEditingCustomer(null);
+                }}
+                className="px-4 py-1.5 bg-[#0066ff] hover:bg-blue-700 text-white rounded text-xs font-bold transition-colors"
+              >
+                Lưu thay đổi
               </button>
             </div>
           </div>

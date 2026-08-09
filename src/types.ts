@@ -86,11 +86,22 @@ export interface Order {
 
 export interface Customer {
   id: string;
+  code?: string;
   name: string;
   phone: string;
+  email?: string;
   address?: string;
   totalSpent: number;
   orderCount: number;
+  creator?: string;
+  createdAt?: string;
+  customerGroup?: string;
+  dob?: string;
+  facebook?: string;
+  gender?: string;
+  note?: string;
+  debt?: number;
+  points?: number;
 }
 
 export interface Supplier {

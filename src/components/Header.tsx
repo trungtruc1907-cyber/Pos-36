@@ -10,7 +10,16 @@ import {
   Settings, 
   User, 
   ShoppingCart, 
-  ChevronDown 
+  ChevronDown,
+  Menu,
+  X,
+  LayoutDashboard,
+  Package,
+  ShoppingBag,
+  Receipt,
+  Users,
+  Wallet,
+  FileText
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -27,10 +36,12 @@ export const Header: React.FC<HeaderProps> = ({
   unreadNotifications,
 }) => {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleSelect = (view: ViewMode) => {
     onSelectView(view);
     setActiveDropdown(null);
+    setMobileMenuOpen(false);
   };
 
   const isGoodsActive = currentView === 'goods' || currentView === 'stock-check';
@@ -39,20 +50,57 @@ export const Header: React.FC<HeaderProps> = ({
   const isCustomersActive = currentView === 'customers' || currentView === 'promotions';
 
   return (
-    <header className="bg-white border-b border-gray-200 sticky top-0 z-40 shadow-sm">
-      {/* Top Header Row */}
-      <div className="flex items-center justify-between px-4 py-2 text-sm">
+    <header className="bg-white border-b border-gray-200 sticky top-0 z-40 shadow-xs">
+      {/* Mobile Top Header Row (exact screenshot format) */}
+      <div className="flex sm:hidden items-center justify-between px-3.5 py-2 bg-white border-b border-gray-100">
+        <button
+          type="button"
+          onClick={() => setMobileMenuOpen(true)}
+          className="p-1.5 rounded-lg text-gray-800 hover:bg-gray-100 transition-colors"
+          aria-label="Menu"
+        >
+          <Menu className="w-6 h-6" />
+        </button>
+
+        {/* Centered Sailboat Logo with 36 */}
+        <div 
+          onClick={() => handleSelect('dashboard')} 
+          className="flex flex-col items-center justify-center cursor-pointer select-none"
+        >
+          <div className="relative w-8 h-7 flex items-center justify-center">
+            <svg className="w-8 h-7" viewBox="0 0 100 80" fill="none">
+              <path d="M 46 10 L 18 58 L 46 58 Z" fill="#F59E0B" />
+              <path d="M 54 6 L 84 58 L 54 58 Z" fill="#2563EB" />
+              <path d="M 16 64 L 84 64 L 72 76 L 28 76 Z" fill="#1e0b54" />
+            </svg>
+          </div>
+          <span className="text-[11px] font-black text-[#1e0b54] tracking-tighter leading-none -mt-0.5">36</span>
+        </div>
+
+        <button 
+          type="button"
+          className="p-1.5 rounded-lg text-gray-800 hover:bg-gray-100 transition-colors relative"
+          aria-label="Notification"
+        >
+          <Bell className="w-6 h-6" />
+          {unreadNotifications > 0 && (
+            <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+          )}
+        </button>
+      </div>
+
+      {/* Desktop Top Header Row */}
+      <div className="hidden sm:flex items-center justify-between px-4 py-2 text-sm">
         {/* Left: Brand Logo & Search */}
         <div className="flex items-center space-x-4">
           <div 
             onClick={() => handleSelect('dashboard')}
             className="flex items-center space-x-2 cursor-pointer group"
           >
-            {/* Maritime / Sail Logo style matching Chống Thấm 36 */}
-            <div className="w-10 h-10 bg-[#1e0b54] rounded-lg flex items-center justify-center text-white font-bold text-lg shadow-sm group-hover:scale-105 transition-transform">
+            <div className="w-10 h-10 bg-[#1e0b54] rounded-lg flex items-center justify-center text-white font-bold text-lg shadow-xs group-hover:scale-105 transition-transform">
               <span className="text-amber-400 font-extrabold tracking-tighter">CT36</span>
             </div>
-            <div className="hidden sm:block">
+            <div>
               <div className="font-extrabold text-[#1e0b54] leading-none text-base">CHỐNG THẤM 36</div>
               <div className="text-[10px] text-gray-500 tracking-wider">HỆ THỐNG PHÂN PHỐI</div>
             </div>
@@ -78,21 +126,21 @@ export const Header: React.FC<HeaderProps> = ({
             <ChevronDown className="w-3 h-3 ml-1" />
           </button>
 
-          <button title="Giao diện" className="hidden sm:block hover:text-[#1e0b54] p-1">
+          <button title="Giao diện" className="hover:text-[#1e0b54] p-1">
             <Palette className="w-4 h-4" />
           </button>
 
-          <button title="Trò chuyện" className="hidden sm:block hover:text-[#1e0b54] p-1">
+          <button title="Trò chuyện" className="hover:text-[#1e0b54] p-1">
             <MessageSquare className="w-4 h-4" />
           </button>
 
-          <button title="Hỗ trợ" className="hidden sm:block hover:text-[#1e0b54] p-1">
+          <button title="Hỗ trợ" className="hover:text-[#1e0b54] p-1">
             <Headphones className="w-4 h-4" />
           </button>
 
           <button className="flex items-center hover:text-[#1e0b54] text-xs font-medium">
             <span className="w-5 h-3.5 mr-1 bg-red-600 rounded-[1px] inline-flex items-center justify-center text-[8px] text-yellow-300 font-bold">★</span>
-            <span className="hidden sm:inline">Tiếng Việt</span>
+            <span>Tiếng Việt</span>
             <ChevronDown className="w-3 h-3 ml-0.5" />
           </button>
 
@@ -470,6 +518,140 @@ export const Header: React.FC<HeaderProps> = ({
           Bán hàng
         </button>
       </div>
+
+      {/* Mobile Drawer Menu */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-50 flex sm:hidden">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/50 transition-opacity"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+
+          {/* Drawer Content */}
+          <div className="relative w-4/5 max-w-xs bg-white h-full shadow-2xl flex flex-col z-10">
+            {/* Drawer Header */}
+            <div className="p-4 bg-[#1e0b54] text-white flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 bg-amber-400 rounded-lg flex items-center justify-center text-[#1e0b54] font-black text-sm">
+                  36
+                </div>
+                <div>
+                  <div className="font-extrabold text-sm leading-none">CHỐNG THẤM 36</div>
+                  <div className="text-[9px] text-indigo-200">HỆ THỐNG PHÂN PHỐI</div>
+                </div>
+              </div>
+              <button
+                onClick={() => setMobileMenuOpen(false)}
+                className="p-1 rounded-md hover:bg-white/10 text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Menu Nav Links */}
+            <div className="flex-1 overflow-y-auto p-3 space-y-1">
+              <button
+                onClick={() => handleSelect('dashboard')}
+                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+                  currentView === 'dashboard'
+                    ? 'bg-[#1e0b54] text-white'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <LayoutDashboard className="w-4 h-4" />
+                <span>Tổng quan</span>
+              </button>
+
+              <button
+                onClick={() => handleSelect('goods')}
+                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+                  isGoodsActive
+                    ? 'bg-[#1e0b54] text-white'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <Package className="w-4 h-4" />
+                <span>Hàng hóa</span>
+              </button>
+
+              <button
+                onClick={() => handleSelect('purchases')}
+                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+                  isPurchasesActive
+                    ? 'bg-[#1e0b54] text-white'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <ShoppingBag className="w-4 h-4" />
+                <span>Mua hàng</span>
+              </button>
+
+              <button
+                onClick={() => handleSelect('orders')}
+                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+                  isOrdersActive
+                    ? 'bg-[#1e0b54] text-white'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <Receipt className="w-4 h-4" />
+                <span>Đơn hàng</span>
+              </button>
+
+              <button
+                onClick={() => handleSelect('customers')}
+                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+                  isCustomersActive
+                    ? 'bg-[#1e0b54] text-white'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <Users className="w-4 h-4" />
+                <span>Khách hàng</span>
+              </button>
+
+              <button
+                onClick={() => handleSelect('cashbook')}
+                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+                  currentView === 'cashbook'
+                    ? 'bg-[#1e0b54] text-white'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <Wallet className="w-4 h-4" />
+                <span>Sổ quỹ</span>
+              </button>
+
+              <button
+                onClick={() => handleSelect('reports')}
+                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+                  currentView === 'reports'
+                    ? 'bg-[#1e0b54] text-white'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <FileText className="w-4 h-4" />
+                <span>Báo cáo</span>
+              </button>
+            </div>
+
+            {/* Bottom POS Button inside Mobile Menu */}
+            <div className="p-3 border-t border-gray-200">
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  onOpenPos();
+                }}
+                className="w-full bg-amber-400 hover:bg-amber-500 text-[#1e0b54] font-bold py-2.5 rounded-lg text-sm flex items-center justify-center shadow-md transition-colors"
+              >
+                <ShoppingCart className="w-4 h-4 mr-2" />
+                Bán hàng (POS)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 };

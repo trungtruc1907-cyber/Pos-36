@@ -23,37 +23,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ activityLogs, onOpen
 
   return (
     <aside className="w-full lg:w-80 space-y-4 flex flex-col shrink-0">
-      {/* Quick Promo / Service Action Cards */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-100 flex flex-col divide-y divide-gray-100 overflow-hidden">
-        <button
-          onClick={onOpenQrInfo}
-          className="flex items-center justify-between p-3 hover:bg-gray-50 transition-colors text-left w-full group"
-        >
-          <div className="flex items-center">
-            <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 mr-3 shrink-0 group-hover:scale-105 transition-transform">
-              <QrCode className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="text-xs font-bold text-gray-800">Thanh toán</div>
-              <div className="text-[11px] text-gray-500">Cài đặt QR ting ting miễn phí</div>
-            </div>
-          </div>
-          <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-emerald-600" />
-        </button>
 
-        <div className="flex items-center justify-between p-3 hover:bg-gray-50 transition-colors cursor-pointer group">
-          <div className="flex items-center">
-            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-[#1e0b54] mr-3 shrink-0 group-hover:scale-105 transition-transform">
-              <Landmark className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="text-xs font-bold text-gray-800">Vay vốn</div>
-              <div className="text-[11px] text-gray-500">Thủ tục gọn, giải ngân nhanh</div>
-            </div>
-          </div>
-          <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-[#1e0b54]" />
-        </div>
-      </div>
 
       {/* Security Alert Banner */}
       {!securityDismissed && (

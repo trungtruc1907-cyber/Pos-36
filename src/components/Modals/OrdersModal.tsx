@@ -37,6 +37,7 @@ interface OrdersModalProps {
   currentView?: ViewMode;
   onSelectView?: (view: ViewMode) => void;
   onReprintOrder: (order: Order) => void;
+  onUpdateOrder?: (id: string, updates: Partial<Order>) => void;
   onAddPurchase?: (purchase: PurchaseOrder) => void;
 }
 
@@ -48,11 +49,13 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
   currentView = 'orders',
   onSelectView,
   onReprintOrder,
+  onUpdateOrder,
   onAddPurchase,
 }) => {
   const [search, setSearch] = useState('');
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [orderTab, setOrderTab] = useState<'info' | 'payments'>('info');
+  const [editingNotes, setEditingNotes] = useState<Record<string, string>>({});
 
   // Add Purchase Tab state
   const [showAddPurchaseTab, setShowAddPurchaseTab] = useState<boolean>(false);
@@ -713,54 +716,80 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
           </div>
         </div>
 
-        {/* View Switcher Tabs */}
-        {onSelectView && (
-          <div className="flex items-center space-x-1 bg-gray-100 p-1 rounded-lg border border-gray-200 text-xs font-medium">
+        <div className="flex items-center space-x-3 w-full sm:w-auto justify-between sm:justify-end">
+          {/* View Switcher Tabs */}
+          {onSelectView && (
+            <div className="flex items-center space-x-1 bg-gray-100 p-1 rounded-lg border border-gray-200 text-xs font-medium">
+              {(currentView === 'purchases' || currentView === 'purchase-returns') ? (
+                <>
+                  <button
+                    onClick={() => onSelectView('suppliers')}
+                    className="px-3 py-1.5 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-200 transition-colors"
+                  >
+                    Nhà cung cấp
+                  </button>
+                  <button
+                    onClick={() => onSelectView('purchases')}
+                    className={`px-3 py-1.5 rounded-md transition-colors ${
+                      currentView === 'purchases'
+                        ? 'bg-[#1e0b54] text-white font-bold shadow-xs'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
+                    }`}
+                  >
+                    Nhập hàng
+                  </button>
+                  <button
+                    onClick={() => onSelectView('purchase-returns')}
+                    className={`px-3 py-1.5 rounded-md transition-colors ${
+                      currentView === 'purchase-returns'
+                        ? 'bg-[#1e0b54] text-white font-bold shadow-xs'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
+                    }`}
+                  >
+                    Trả hàng nhập
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => onSelectView('orders')}
+                    className={`px-3 py-1.5 rounded-md transition-colors ${
+                      currentView === 'orders'
+                        ? 'bg-[#1e0b54] text-white font-bold shadow-xs'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
+                    }`}
+                  >
+                    Hóa đơn bán
+                  </button>
+                  <button
+                    onClick={() => onSelectView('returns')}
+                    className={`px-3 py-1.5 rounded-md transition-colors ${
+                      currentView === 'returns'
+                        ? 'bg-[#1e0b54] text-white font-bold shadow-xs'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
+                    }`}
+                  >
+                    Khách trả hàng
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
+          {currentView === 'purchases' && (
             <button
-              onClick={() => onSelectView('purchases')}
-              className={`px-3 py-1.5 rounded-md transition-colors ${
-                currentView === 'purchases'
-                  ? 'bg-[#1e0b54] text-white font-bold shadow-xs'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
-              }`}
+              type="button"
+              onClick={() => setShowAddPurchaseTab(true)}
+              className="bg-[#1e0b54] hover:bg-[#15073c] text-white font-bold px-3.5 py-2 rounded-lg text-xs flex items-center shadow-md transition-colors shrink-0"
             >
-              Nhập hàng
+              <Plus className="w-4 h-4 mr-1.5 text-amber-400" />
+              Thêm phiếu nhập
             </button>
-            <button
-              onClick={() => onSelectView('purchase-returns')}
-              className={`px-3 py-1.5 rounded-md transition-colors ${
-                currentView === 'purchase-returns'
-                  ? 'bg-[#1e0b54] text-white font-bold shadow-xs'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
-              }`}
-            >
-              Trả hàng nhập
-            </button>
-            <button
-              onClick={() => onSelectView('orders')}
-              className={`px-3 py-1.5 rounded-md transition-colors ${
-                currentView === 'orders'
-                  ? 'bg-[#1e0b54] text-white font-bold shadow-xs'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
-              }`}
-            >
-              Hóa đơn bán
-            </button>
-            <button
-              onClick={() => onSelectView('returns')}
-              className={`px-3 py-1.5 rounded-md transition-colors ${
-                currentView === 'returns'
-                  ? 'bg-[#1e0b54] text-white font-bold shadow-xs'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
-              }`}
-            >
-              Khách trả hàng
-            </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      {/* Search Input & Action Button */}
+      {/* Search Input */}
       <div className="bg-white rounded-lg shadow-sm p-3 border border-gray-100 flex items-center justify-between gap-3">
         <div className="relative flex-1">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -776,16 +805,6 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
             className="w-full pl-9 pr-3 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:border-[#1e0b54]"
           />
         </div>
-        {currentView === 'purchases' && (
-          <button
-            type="button"
-            onClick={() => setShowAddPurchaseTab(true)}
-            className="flex items-center px-4 py-2 bg-[#0066ff] hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow-xs transition-colors shrink-0"
-          >
-            <Plus className="w-4 h-4 mr-1.5" />
-            Thêm phiếu nhập
-          </button>
-        )}
       </div>
 
       {/* Table Content */}
@@ -1376,27 +1395,30 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
                                             </td>
                                             <td className="p-2.5 border-r border-gray-100 font-medium text-gray-900">
                                               Grout 510 - Silver - 25kg/bao (Bao)
-                                            </td>
-                                            <td className="p-2.5 border-r border-gray-100 text-center font-bold">1</td>
-                                            <td className="p-2.5 border-r border-gray-100 text-right font-mono text-gray-700">180,000</td>
-                                            <td className="p-2.5 border-r border-gray-100 text-right font-mono text-gray-400"></td>
-                                            <td className="p-2.5 border-r border-gray-100 text-right font-mono text-gray-700">180,000</td>
-                                            <td className="p-2.5 text-right font-mono font-bold text-gray-900">180,000</td>
-                                          </tr>
-                                        )}
-                                      </tbody>
-                                    </table>
-                                  </div>
+                                             </td>
+                                             <td className="p-2.5 border-r border-gray-100 text-center font-bold">1</td>
+                                             <td className="p-2.5 border-r border-gray-100 text-right font-mono text-gray-700">180,000</td>
+                                             <td className="p-2.5 border-r border-gray-100 text-right font-mono text-gray-400"></td>
+                                             <td className="p-2.5 border-r border-gray-100 text-right font-mono text-gray-700">180,000</td>
+                                             <td className="p-2.5 text-right font-mono font-bold text-gray-900">180,000</td>
+                                           </tr>
+                                         )}
+                                       </tbody>
+                                     </table>
+                                   </div>
 
-                                  {/* Bottom Note & Math summary */}
+                                   {/* Bottom Note & Math summary */}
                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
                                     <div>
+                                      <label className="block text-[11px] font-bold text-gray-600 mb-1">Ghi chú đơn hàng:</label>
                                       <textarea
                                         rows={3}
-                                        placeholder="Ghi chú..."
-                                        value={ord.note || ''}
-                                        readOnly
-                                        className="w-full p-2.5 border border-gray-200 rounded text-xs text-gray-700 focus:outline-none bg-gray-50/50"
+                                        placeholder="Nhập ghi chú đơn hàng..."
+                                        value={editingNotes[ord.id] !== undefined ? editingNotes[ord.id] : (ord.note || '')}
+                                        onChange={(e) =>
+                                          setEditingNotes({ ...editingNotes, [ord.id]: e.target.value })
+                                        }
+                                        className="w-full p-2.5 border border-gray-300 rounded text-xs text-gray-800 focus:outline-none focus:border-blue-600 bg-white shadow-xs"
                                       />
                                     </div>
 
@@ -1467,44 +1489,38 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          alert(`Chỉnh sửa hóa đơn ${ord.orderCode}`);
+                                          const noteToSave = editingNotes[ord.id] !== undefined ? editingNotes[ord.id] : (ord.note || '');
+                                          if (onUpdateOrder) {
+                                            onUpdateOrder(ord.id, { note: noteToSave });
+                                            alert(`Đã cập nhật ghi chú cho đơn hàng ${ord.orderCode}`);
+                                          }
                                         }}
                                         className="flex items-center px-4 py-1.5 bg-[#0066ff] hover:bg-blue-700 text-white rounded text-xs font-bold shadow-xs transition-colors"
                                       >
-                                        <Pencil className="w-3.5 h-3.5 mr-1.5" />
-                                        Chỉnh sửa
-                                      </button>
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          alert(`Đã lưu thông tin hóa đơn ${ord.orderCode}`);
-                                        }}
-                                        className="flex items-center px-3 py-1.5 border border-gray-300 rounded text-xs font-medium text-gray-700 hover:bg-gray-100 transition-colors"
-                                      >
-                                        <Save className="w-3.5 h-3.5 mr-1 text-gray-500" />
-                                        Lưu
-                                      </button>
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          alert(`Tạo phiếu trả hàng cho đơn ${ord.orderCode}`);
-                                        }}
-                                        className="flex items-center px-3 py-1.5 border border-gray-300 rounded text-xs font-medium text-gray-700 hover:bg-gray-100 transition-colors"
-                                      >
-                                        <RotateCcw className="w-3.5 h-3.5 mr-1 text-gray-500" />
-                                        Trả hàng
-                                      </button>
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          onReprintOrder(ord);
-                                        }}
-                                        className="flex items-center px-3 py-1.5 border border-gray-300 rounded text-xs font-medium text-gray-700 hover:bg-gray-100 transition-colors"
-                                      >
-                                        <Printer className="w-3.5 h-3.5 mr-1 text-gray-500" />
-                                        In
-                                      </button>
-                                    </div>
+                                        <Save className="w-3.5 h-3.5 mr-1.5" />
+                                        Lưu ghi chú
+                                       </button>
+                                       <button
+                                         onClick={(e) => {
+                                           e.stopPropagation();
+                                           alert(`Tạo phiếu trả hàng cho đơn ${ord.orderCode}`);
+                                         }}
+                                         className="flex items-center px-3 py-1.5 border border-gray-300 rounded text-xs font-medium text-gray-700 hover:bg-gray-100 transition-colors"
+                                       >
+                                         <RotateCcw className="w-3.5 h-3.5 mr-1 text-gray-500" />
+                                         Trả hàng
+                                       </button>
+                                       <button
+                                         onClick={(e) => {
+                                           e.stopPropagation();
+                                           onReprintOrder(ord);
+                                         }}
+                                         className="flex items-center px-3 py-1.5 border border-gray-300 rounded text-xs font-medium text-gray-700 hover:bg-gray-100 transition-colors"
+                                       >
+                                         <Printer className="w-3.5 h-3.5 mr-1 text-gray-500" />
+                                         In
+                                       </button>
+                                     </div>
                                   </div>
                                 </div>
                               )}

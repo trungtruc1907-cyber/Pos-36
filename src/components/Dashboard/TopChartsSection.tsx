@@ -9,6 +9,7 @@ import {
   Legend,
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
+import { ChevronRight, BarChart2, List } from 'lucide-react';
 import { Order, Product } from '../../types';
 import { getTopProductsData, getTopCustomersData } from '../../utils/dashboardUtils';
 
@@ -149,13 +150,28 @@ export const TopChartsSection: React.FC<TopChartsSectionProps> = ({ orders, prod
     },
   };
 
+  const [productDisplayMode, setProductDisplayMode] = useState<'list' | 'chart'>('list');
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       {/* Top 10 Products Card */}
-      <section className="bg-white rounded-lg shadow-sm p-4 border border-gray-100 flex flex-col justify-between">
-        <div className="flex flex-wrap justify-between items-center mb-3 gap-2">
-          <h2 className="text-sm font-bold text-gray-800">Top 10 hàng bán chạy</h2>
-          <div className="flex space-x-1 text-xs">
+      <section className="bg-white rounded-xl shadow-2xs p-4 border border-gray-100/80 flex flex-col justify-between">
+        <div className="flex justify-between items-center mb-3">
+          <div className="flex items-center space-x-1 cursor-pointer group">
+            <h2 className="text-base font-bold text-gray-900 group-hover:text-[#1e0b54] transition-colors">
+              Top 10 hàng bán chạy
+            </h2>
+            <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-[#1e0b54] transition-colors" />
+          </div>
+
+          <div className="flex items-center space-x-1.5 text-xs">
+            <button
+              onClick={() => setProductDisplayMode(productDisplayMode === 'list' ? 'chart' : 'list')}
+              className="p-1 text-gray-500 hover:text-[#1e0b54] transition-colors rounded hover:bg-gray-100"
+              title="Đổi chế độ xem"
+            >
+              {productDisplayMode === 'list' ? <BarChart2 className="w-4 h-4" /> : <List className="w-4 h-4" />}
+            </button>
             <select
               value={productFilter}
               onChange={(e) => setProductFilter(e.target.value)}
@@ -176,15 +192,42 @@ export const TopChartsSection: React.FC<TopChartsSectionProps> = ({ orders, prod
           </div>
         </div>
 
-        <div className="h-80 w-full">
-          <Bar data={productsChartData} options={productsChartOptions} />
-        </div>
+        {productDisplayMode === 'list' ? (
+          <div className="divide-y divide-gray-100/80 my-1">
+            {topProductsRes.labels.length > 0 ? (
+              topProductsRes.labels.map((label, idx) => (
+                <div key={idx} className="flex items-center justify-between py-2.5 text-xs sm:text-sm hover:bg-gray-50/60 px-1 rounded transition-colors">
+                  <div className="flex items-center space-x-3 min-w-0 pr-2">
+                    <span className="font-bold text-gray-400 text-xs w-6 shrink-0">#{idx + 1}</span>
+                    <span className="font-medium text-gray-800 truncate">{label}</span>
+                  </div>
+                  <span className="font-bold text-[#1e0b54] shrink-0 text-xs sm:text-sm">
+                    {productFilter === 'Theo số lượng'
+                      ? `${topProductsRes.values[idx]} SL`
+                      : `${topProductsRes.values[idx]} tr VNĐ`}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-8 text-xs text-gray-400">Chưa có dữ liệu bán hàng.</div>
+            )}
+          </div>
+        ) : (
+          <div className="h-72 w-full">
+            <Bar data={productsChartData} options={productsChartOptions} />
+          </div>
+        )}
       </section>
 
       {/* Top 10 Customers Card */}
-      <section className="bg-white rounded-lg shadow-sm p-4 border border-gray-100 flex flex-col justify-between">
+      <section className="bg-white rounded-xl shadow-2xs p-4 border border-gray-100/80 flex flex-col justify-between">
         <div className="flex justify-between items-center mb-3">
-          <h2 className="text-sm font-bold text-gray-800">Top 10 khách mua nhiều nhất</h2>
+          <div className="flex items-center space-x-1 cursor-pointer group">
+            <h2 className="text-base font-bold text-gray-900 group-hover:text-[#1e0b54] transition-colors">
+              Top 10 khách mua nhiều nhất
+            </h2>
+            <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-[#1e0b54] transition-colors" />
+          </div>
           <select
             value={timeFilterCustomers}
             onChange={(e) => setTimeFilterCustomers(e.target.value)}
@@ -196,7 +239,7 @@ export const TopChartsSection: React.FC<TopChartsSectionProps> = ({ orders, prod
           </select>
         </div>
 
-        <div className="h-80 w-full">
+        <div className="h-72 w-full">
           <Bar data={customersChartData} options={customersChartOptions} />
         </div>
       </section>

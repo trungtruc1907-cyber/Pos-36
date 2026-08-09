@@ -72,7 +72,7 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({
             <p className="text-[11px] text-gray-600 font-medium">
               Chuyên vật liệu chống thấm & keo xây dựng cao cấp
             </p>
-            <p className="text-[11px] text-gray-500">ĐC: Lô 36 KĐT Mới, TP Thanh Hóa | Hotline: 1900 6522</p>
+            <p className="text-[11px] text-gray-500">ĐC: Lô 36 KĐT Mới, TP Thanh Hóa | Hotline: 0915 586 234</p>
             <h1 className="text-base font-extrabold text-gray-900 uppercase pt-2 tracking-wide">
               HÓA ĐƠN BÁN HÀNG
             </h1>
