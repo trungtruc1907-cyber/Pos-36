@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Order, PurchaseOrder, ViewMode, Product, Supplier } from '../../types';
+import { Pagination } from '../Pagination';
 import { 
   FileText, 
   Search, 
@@ -83,6 +84,10 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
   const [prodSearchKey, setProdSearchKey] = useState<string>('');
   const [showProdDropdown, setShowProdDropdown] = useState<boolean>(false);
   const [showSuppDropdown, setShowSuppDropdown] = useState<boolean>(false);
+
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
 
   const isPurchaseMode = currentView === 'purchases' || currentView === 'purchase-returns';
 
@@ -701,6 +706,16 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
       p.code.toLowerCase().includes(search.toLowerCase()) ||
       p.supplierName.toLowerCase().includes(search.toLowerCase())
   );
+
+  const paginatedOrders = React.useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredOrders.slice(start, start + pageSize);
+  }, [filteredOrders, currentPage, pageSize]);
+
+  const paginatedPurchases = React.useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredPurchases.slice(start, start + pageSize);
+  }, [filteredPurchases, currentPage, pageSize]);
 
   return (
     <div className="flex-1 bg-[#f3f4f6] p-4 flex flex-col space-y-4 overflow-auto">

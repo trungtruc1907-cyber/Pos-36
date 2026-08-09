@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Customer, Supplier, Order, ViewMode } from '../../types';
 import { Users, Search, Phone, MapPin, UserPlus, X, Building2, UserCheck, Tag, Mail, Pencil, Trash2, Lock, Edit3 } from 'lucide-react';
+import { Pagination } from '../Pagination';
 
 interface CustomersModalProps {
   customers: Customer[];
@@ -96,6 +97,10 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
   const headerInfo = getHeaderInfo();
   const IconComponent = headerInfo.icon;
 
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
+
   // Filter lists based on search
   const filteredCustomers = customers.filter(
     (c) =>
@@ -112,6 +117,16 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
       s.phone.includes(search) ||
       (s.email && s.email.toLowerCase().includes(search.toLowerCase()))
   );
+
+  const paginatedCustomers = React.useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredCustomers.slice(start, start + pageSize);
+  }, [filteredCustomers, currentPage, pageSize]);
+
+  const paginatedSuppliers = React.useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredSuppliers.slice(start, start + pageSize);
+  }, [filteredSuppliers, currentPage, pageSize]);
 
   // Totals for Suppliers
   const totalSupplierDebt = suppliers.reduce((sum, s) => sum + (s.currentDebt || 0), 0);
@@ -292,7 +307,10 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
         <input
           type="text"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setCurrentPage(1);
+          }}
           placeholder={`Tìm kiếm tên, mã, SĐT trong ${headerInfo.title.toLowerCase()}...`}
           className="w-full pl-9 pr-3 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:border-[#1e0b54]"
         />
@@ -331,14 +349,14 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 font-sans">
-              {filteredSuppliers.length === 0 ? (
+              {paginatedSuppliers.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="text-center py-8 text-gray-400 italic">
                     Chưa có thông tin nhà cung cấp nào.
                   </td>
                 </tr>
               ) : (
-                filteredSuppliers.map((s, idx) => {
+                paginatedSuppliers.map((s, idx) => {
                   const isExpanded = expandedSupplierId === s.id;
                   return (
                     <React.Fragment key={s.id}>
@@ -653,14 +671,14 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 font-sans">
-              {filteredCustomers.length === 0 ? (
+              {paginatedCustomers.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="text-center py-8 text-gray-400 italic">
                     Chưa có thông tin khách hàng nào.
                   </td>
                 </tr>
               ) : (
-                filteredCustomers.map((c, idx) => {
+                paginatedCustomers.map((c, idx) => {
                   const isExpanded = expandedCustomerId === c.id;
                   const customerCode = c.code || `KH${String((idx + 1) * 100).padStart(6, '0')}`;
                   return (
@@ -1039,6 +1057,16 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
             </tbody>
           </table>
         )}
+
+        {/* Pagination Controls */}
+        <Pagination
+          currentPage={currentPage}
+          totalItems={currentView === 'suppliers' ? filteredSuppliers.length : filteredCustomers.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={setPageSize}
+          pageSizeOptions={[10, 20, 50, 100]}
+        />
       </div>
 
       {/* Edit Supplier Modal */}

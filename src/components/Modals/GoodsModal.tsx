@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { resetAndSeedDatabase, deleteProduct } from '../../lib/productsService';
 import { ImportExcelModal } from './ImportExcelModal';
+import { Pagination } from '../Pagination';
 
 interface GoodsModalProps {
   products: Product[];
@@ -194,6 +195,10 @@ export const GoodsModal: React.FC<GoodsModalProps> = ({
   // Import Excel modal state
   const [showImportExcelModal, setShowImportExcelModal] = useState<boolean>(false);
 
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
+
   // Form states for creating/editing
   const [formData, setFormData] = useState<Partial<Product>>({
     loaiHang: 'Hàng hóa',
@@ -228,6 +233,11 @@ export const GoodsModal: React.FC<GoodsModalProps> = ({
       (p.brand && p.brand.toLowerCase().includes(search.toLowerCase()));
     return matchCat && matchType && matchQuery;
   });
+
+  const paginatedProducts = React.useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, currentPage, pageSize]);
 
   const handleOpenAddModal = () => {
     setEditingProduct(null);
@@ -399,7 +409,10 @@ export const GoodsModal: React.FC<GoodsModalProps> = ({
           <input
             type="text"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setCurrentPage(1);
+            }}
             placeholder="Tìm theo mã hàng, tên hàng, thương hiệu..."
             className="w-full pl-9 pr-3 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:border-[#1e0b54]"
           />
@@ -411,7 +424,10 @@ export const GoodsModal: React.FC<GoodsModalProps> = ({
             <span className="text-gray-500 font-medium whitespace-nowrap">Loại:</span>
             <select
               value={selectedItemType}
-              onChange={(e) => setSelectedItemType(e.target.value)}
+              onChange={(e) => {
+                setSelectedItemType(e.target.value);
+                setCurrentPage(1);
+              }}
               className="border border-gray-300 rounded text-xs py-1.5 pl-2 pr-6 bg-white focus:outline-none focus:border-[#1e0b54]"
             >
               {itemTypes.map((type, idx) => (
@@ -426,7 +442,10 @@ export const GoodsModal: React.FC<GoodsModalProps> = ({
             <span className="text-gray-500 font-medium whitespace-nowrap">Nhóm hàng:</span>
             <select
               value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
+              onChange={(e) => {
+                setSelectedCategory(e.target.value);
+                setCurrentPage(1);
+              }}
               className="border border-gray-300 rounded text-xs py-1.5 pl-2 pr-6 bg-white focus:outline-none focus:border-[#1e0b54]"
             >
               {categories.map((cat, idx) => (
@@ -467,14 +486,14 @@ export const GoodsModal: React.FC<GoodsModalProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 text-gray-800">
-              {filtered.length === 0 ? (
+              {paginatedProducts.length === 0 ? (
                 <tr>
                   <td colSpan={19} className="text-center py-12 text-gray-400 italic">
                     Không tìm thấy sản phẩm nào khớp với bộ lọc.
                   </td>
                 </tr>
               ) : (
-                filtered.map((p) => {
+                paginatedProducts.map((p) => {
                   const isExpanded = selectedProductId === p.id;
                   return (
                     <React.Fragment key={p.id}>
@@ -1033,6 +1052,16 @@ export const GoodsModal: React.FC<GoodsModalProps> = ({
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Controls */}
+        <Pagination
+          currentPage={currentPage}
+          totalItems={filtered.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={setPageSize}
+          pageSizeOptions={[10, 20, 50, 100]}
+        />
       </div>
 
       {/* Add / Edit Product Modal */}
