@@ -10,6 +10,8 @@ import {
 import { db } from './firebase';
 import { Order } from '../types';
 
+import { parseDateToMillis } from '../utils/dateUtils';
+
 const ORDERS_COLLECTION = 'orders';
 
 export const INITIAL_FIRESTORE_ORDERS: Omit<Order, 'id'>[] = [
@@ -415,10 +417,12 @@ export function subscribeOrders(onData: (orders: Order[]) => void, onError?: (er
       };
     });
 
-    // Sort by createdAt / date descending so newest orders appear first
+    // Sort by date / createdAt descending so newest orders appear first
     ordersList.sort((a, b) => {
-      if (a.createdAt && b.createdAt) {
-        return b.createdAt.localeCompare(a.createdAt);
+      const timeA = parseDateToMillis(a.date, a.createdAt);
+      const timeB = parseDateToMillis(b.date, b.createdAt);
+      if (timeA !== timeB) {
+        return timeB - timeA;
       }
       return b.orderCode.localeCompare(a.orderCode);
     });

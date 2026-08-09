@@ -11,6 +11,7 @@ import {
 import { db } from './firebase';
 import { Customer } from '../types';
 import { INITIAL_CUSTOMERS } from '../data/mockData';
+import { parseDateToMillis } from '../utils/dateUtils';
 
 const CUSTOMERS_COLLECTION = 'customers';
 
@@ -63,6 +64,12 @@ export function subscribeCustomers(
         const list: Customer[] = [];
         snapshot.forEach((docSnap) => {
           list.push({ ...docSnap.data(), id: docSnap.id } as Customer);
+        });
+        list.sort((a, b) => {
+          const timeA = parseDateToMillis((a as any).createdAt || (a as any).updatedAt);
+          const timeB = parseDateToMillis((b as any).createdAt || (b as any).updatedAt);
+          if (timeA !== timeB) return timeB - timeA;
+          return (b.code || '').localeCompare(a.code || '');
         });
         onUpdate(list);
       }

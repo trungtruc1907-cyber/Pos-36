@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Order, PurchaseOrder, ViewMode, Product, Supplier } from '../../types';
+import { parseDateToMillis } from '../../utils/dateUtils';
 import { Pagination } from '../Pagination';
 import { 
   FileText, 
@@ -128,17 +129,37 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
     setShowAddPurchaseTab(false);
   }, [currentView]);
 
-  const filteredOrders = orders.filter(
-    (o) =>
-      o.orderCode.toLowerCase().includes(search.toLowerCase()) ||
-      o.customerName.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredOrders = React.useMemo(() => {
+    const list = orders.filter(
+      (o) =>
+        o.orderCode.toLowerCase().includes(search.toLowerCase()) ||
+        o.customerName.toLowerCase().includes(search.toLowerCase())
+    );
+    return list.sort((a, b) => {
+      const timeA = parseDateToMillis(a.date, a.createdAt);
+      const timeB = parseDateToMillis(b.date, b.createdAt);
+      if (timeA !== timeB) return timeB - timeA;
+      return b.orderCode.localeCompare(a.orderCode);
+    });
+  }, [orders, search]);
 
-  const filteredPurchases = purchases.filter(
-    (p) =>
-      p.code.toLowerCase().includes(search.toLowerCase()) ||
-      p.supplierName.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredPurchases = React.useMemo(() => {
+    const list = purchases.filter(
+      (p) =>
+        p.code.toLowerCase().includes(search.toLowerCase()) ||
+        p.supplierName.toLowerCase().includes(search.toLowerCase())
+    );
+    return list.sort((a, b) => {
+      const timeA = parseDateToMillis(pDate(a), a.createdAt);
+      const timeB = parseDateToMillis(pDate(b), b.createdAt);
+      if (timeA !== timeB) return timeB - timeA;
+      return b.code.localeCompare(a.code);
+    });
+  }, [purchases, search]);
+
+  function pDate(p: PurchaseOrder): string {
+    return p.date || '';
+  }
 
   const paginatedOrders = React.useMemo(() => {
     const start = (currentPage - 1) * pageSize;

@@ -10,6 +10,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { Supplier } from '../types';
+import { parseDateToMillis } from '../utils/dateUtils';
 
 const SUPPLIERS_COLLECTION = 'suppliers';
 
@@ -185,8 +186,13 @@ export function subscribeSuppliers(onData: (suppliers: Supplier[]) => void, onEr
       };
     });
 
-    // Sort descending by code
-    suppliersList.sort((a, b) => b.code.localeCompare(a.code));
+    // Sort descending by time or code
+    suppliersList.sort((a, b) => {
+      const timeA = parseDateToMillis((a as any).createdAt || (a as any).updatedAt);
+      const timeB = parseDateToMillis((b as any).createdAt || (b as any).updatedAt);
+      if (timeA !== timeB) return timeB - timeA;
+      return b.code.localeCompare(a.code);
+    });
 
     onData(suppliersList);
   }, (err) => {

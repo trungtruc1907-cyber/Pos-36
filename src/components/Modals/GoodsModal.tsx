@@ -25,6 +25,7 @@ import {
   FileSpreadsheet
 } from 'lucide-react';
 import { resetAndSeedDatabase, deleteProduct } from '../../lib/productsService';
+import { parseDateToMillis } from '../../utils/dateUtils';
 import { ImportExcelModal } from './ImportExcelModal';
 import { Pagination } from '../Pagination';
 
@@ -276,15 +277,23 @@ export const GoodsModal: React.FC<GoodsModalProps> = ({
   const categories = ['Tất cả', ...Array.from(new Set(products.map((p) => p.nhomHang || p.category).filter(Boolean)))];
   const itemTypes = ['Tất cả', ...Array.from(new Set(products.map((p) => p.loaiHang).filter(Boolean)))];
 
-  const filtered = products.filter((p) => {
-    const matchCat = selectedCategory === 'Tất cả' || (p.nhomHang || p.category) === selectedCategory;
-    const matchType = selectedItemType === 'Tất cả' || p.loaiHang === selectedItemType;
-    const matchQuery =
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.code.toLowerCase().includes(search.toLowerCase()) ||
-      (p.brand && p.brand.toLowerCase().includes(search.toLowerCase()));
-    return matchCat && matchType && matchQuery;
-  });
+  const filtered = React.useMemo(() => {
+    const list = products.filter((p) => {
+      const matchCat = selectedCategory === 'Tất cả' || (p.nhomHang || p.category) === selectedCategory;
+      const matchType = selectedItemType === 'Tất cả' || p.loaiHang === selectedItemType;
+      const matchQuery =
+        p.name.toLowerCase().includes(search.toLowerCase()) ||
+        p.code.toLowerCase().includes(search.toLowerCase()) ||
+        (p.brand && p.brand.toLowerCase().includes(search.toLowerCase()));
+      return matchCat && matchType && matchQuery;
+    });
+    return list.sort((a, b) => {
+      const timeA = parseDateToMillis(a.createdAt || a.updatedAt);
+      const timeB = parseDateToMillis(b.createdAt || b.updatedAt);
+      if (timeA !== timeB) return timeB - timeA;
+      return b.code.localeCompare(a.code);
+    });
+  }, [products, selectedCategory, selectedItemType, search]);
 
   const paginatedProducts = React.useMemo(() => {
     const start = (currentPage - 1) * pageSize;

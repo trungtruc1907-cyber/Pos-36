@@ -11,6 +11,7 @@ import {
 import { db, auth } from './firebase';
 import { PurchaseOrder } from '../types';
 import { INITIAL_PURCHASES } from '../data/mockData';
+import { parseDateToMillis } from '../utils/dateUtils';
 
 const PURCHASES_COLLECTION = 'purchases';
 
@@ -112,10 +113,12 @@ export function subscribePurchases(
         };
       });
 
-      // Sort by createdAt / date descending so newest purchases appear first
+      // Sort by date / createdAt descending so newest purchases appear first
       purchasesList.sort((a, b) => {
-        if (a.createdAt && b.createdAt) {
-          return b.createdAt.localeCompare(a.createdAt);
+        const timeA = parseDateToMillis(a.date, a.createdAt);
+        const timeB = parseDateToMillis(b.date, b.createdAt);
+        if (timeA !== timeB) {
+          return timeB - timeA;
         }
         return b.code.localeCompare(a.code);
       });
