@@ -89,6 +89,10 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(10);
 
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [currentView]);
+
   const isPurchaseMode = currentView === 'purchases' || currentView === 'purchase-returns';
 
   const toggleExpandOrder = (id: string) => {
