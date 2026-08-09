@@ -352,6 +352,18 @@ export default function App() {
     });
   };
 
+  // Handle direct navigation/link to invoice from activity log
+  const handleSelectOrderFromActivity = (orderCode: string) => {
+    const foundOrder = orders.find(
+      (o) => o.orderCode.toLowerCase() === orderCode.toLowerCase() || o.id === orderCode
+    );
+    if (foundOrder) {
+      handleReprintOrder(foundOrder);
+    } else {
+      setCurrentView('orders');
+    }
+  };
+
   // Update order (note, status, etc.) in Firestore
   const handleUpdateOrder = async (id: string, updates: Partial<Order>) => {
     try {
@@ -394,6 +406,7 @@ export default function App() {
               todayRevenue={todayRevenue}
               todayOrdersCount={todayOrdersCount}
               onOpenQrInfo={() => setShowQrModal(true)}
+              onSelectOrder={handleSelectOrderFromActivity}
             />
           )}
 

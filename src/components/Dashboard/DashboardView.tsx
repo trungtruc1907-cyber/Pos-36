@@ -13,6 +13,7 @@ interface DashboardViewProps {
   todayRevenue?: number;
   todayOrdersCount?: number;
   onOpenQrInfo: () => void;
+  onSelectOrder?: (orderCode: string) => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -20,6 +21,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   products,
   activityLogs: externalActivityLogs,
   onOpenQrInfo,
+  onSelectOrder,
 }) => {
   const stats = getDashboardStats(orders, products);
   const dynamicLogs = getActivityLogsFromOrders(orders);
@@ -46,6 +48,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       <RightSidebar
         activityLogs={activeLogs}
         onOpenQrInfo={onOpenQrInfo}
+        onSelectOrder={onSelectOrder}
       />
     </main>
   );

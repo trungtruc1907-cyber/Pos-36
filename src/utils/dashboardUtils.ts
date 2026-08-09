@@ -308,9 +308,11 @@ export function getActivityLogsFromOrders(orders: Order[]): ActivityLog[] {
     id: ord.id,
     type: 'sale' as const,
     storeName: 'Chống Thấm 36',
-    actionText: `vừa bán đơn hàng ${ord.orderCode}`,
+    actionText: `vừa bán đơn hàng`,
     amount: ord.totalAmount,
     formattedAmount: `${ord.totalAmount.toLocaleString('vi-VN')}đ`,
     time: ord.date,
+    orderCode: ord.orderCode,
+    orderId: ord.id,
   }));
 }

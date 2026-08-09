@@ -151,6 +151,8 @@ export interface ActivityLog {
   actionText: string;
   amount: number;
   formattedAmount: string;
+  orderCode?: string;
+  orderId?: string;
 }
 
 export interface DayRevenue {

@@ -811,7 +811,10 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
           <input
             type="text"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setCurrentPage(1);
+            }}
             placeholder={
               isPurchaseMode
                 ? 'Tìm kiếm mã phiếu nhập (PN000...) hoặc tên Nhà cung cấp...'
@@ -838,14 +841,14 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredPurchases.length === 0 ? (
+              {paginatedPurchases.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="text-center py-8 text-gray-400 italic">
                     Chưa có phiếu nhập hàng nào.
                   </td>
                 </tr>
               ) : (
-                filteredPurchases.map((p) => {
+                paginatedPurchases.map((p) => {
                   const isExpanded = expandedOrderId === p.id;
 
                   return (
@@ -1192,14 +1195,14 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 font-sans">
-                {filteredOrders.length === 0 ? (
+                {paginatedOrders.length === 0 ? (
                   <tr>
                     <td colSpan={10} className="text-center py-8 text-gray-400 italic">
                       Chưa có hóa đơn nào trong cơ sở dữ liệu.
                     </td>
                   </tr>
                 ) : (
-                  filteredOrders.map((ord, idx) => {
+                  paginatedOrders.map((ord, idx) => {
                     const isExpanded = expandedOrderId === ord.id;
                     const subtotal = ord.subtotal || ord.totalAmount;
                     const discount = ord.discount || 0;
@@ -1586,6 +1589,16 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
             </table>
           </div>
         )}
+
+        {/* Pagination Controls */}
+        <Pagination
+          currentPage={currentPage}
+          totalItems={isPurchaseMode ? filteredPurchases.length : filteredOrders.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={setPageSize}
+          pageSizeOptions={[10, 20, 50, 100]}
+        />
       </div>
     </div>
   );
