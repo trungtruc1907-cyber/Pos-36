@@ -1,0 +1,73 @@
+import React from 'react';
+
+interface LogoProps {
+  className?: string;
+  showText?: boolean;
+  variant?: 'default' | 'white';
+}
+
+export const Logo: React.FC<LogoProps> = ({ 
+  className = 'w-10 h-10', 
+  showText = false,
+  variant = 'default' 
+}) => {
+  const isWhite = variant === 'white';
+  const navyColor = isWhite ? '#FFFFFF' : '#1e0b54';
+  const amberColor = isWhite ? '#FBBF24' : '#D97706';
+
+  return (
+    <div className={`flex items-center space-x-2 select-none ${showText ? '' : 'inline-flex'}`}>
+      <svg
+        viewBox="0 0 200 200"
+        className={className}
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        {/* Left Sail (Golden Amber) */}
+        <path
+          d="M 58 12 C 58 12 40 46 22 92 C 45 87 57 80 68 74 C 61 50 58 12 58 12 Z"
+          fill={amberColor}
+        />
+        
+        {/* Middle Sail (Dark Navy Blue) */}
+        <path
+          d="M 88 8 C 88 8 72 46 51 106 C 75 98 88 88 98 80 C 92 50 88 8 88 8 Z"
+          fill={navyColor}
+        />
+
+        {/* Right Sail (Golden Amber) */}
+        <path
+          d="M 120 10 C 120 10 102 56 81 116 C 122 108 152 98 176 92 C 148 50 120 10 120 10 Z"
+          fill={amberColor}
+        />
+
+        {/* Brand Number "3" */}
+        <g fill={navyColor}>
+          {/* Top Bar of 3 */}
+          <path d="M 20 124 H 90 C 96 124 100 128 100 134 V 144 C 100 150 96 154 90 154 H 36 V 140 H 86 V 138 H 20 V 124 Z" />
+          {/* Middle & Bottom of 3 */}
+          <path d="M 36 150 H 90 C 96 150 100 154 100 160 V 182 C 100 188 96 192 90 192 H 20 V 178 H 86 V 164 H 36 V 150 Z" />
+        </g>
+
+        {/* Brand Number "6" */}
+        <g fill={navyColor}>
+          {/* Top Bar & Left Spine of 6 */}
+          <path d="M 104 124 H 176 V 138 H 118 V 192 H 104 V 124 Z" />
+          {/* Enclosed Loop of 6 */}
+          <path d="M 118 150 H 170 C 176 150 180 154 180 160 V 182 C 180 188 176 192 170 192 H 118 V 150 Z M 132 164 V 178 H 166 V 164 H 132 Z" />
+        </g>
+      </svg>
+
+      {showText && (
+        <div className="flex flex-col">
+          <span className={`font-extrabold text-base leading-none ${isWhite ? 'text-white' : 'text-[#1e0b54]'}`}>
+            CHỐNG THẤM 36
+          </span>
+          <span className={`text-[10px] tracking-wider ${isWhite ? 'text-indigo-200' : 'text-gray-500'}`}>
+            HỆ THỐNG PHÂN PHỐI
+          </span>
+        </div>
+      )}
+    </div>
+  );
+};

@@ -1,6 +1,7 @@
 import React from 'react';
 import { CartItem, PaymentMethod } from '../../types';
 import { Printer, CheckCircle, X, Download } from 'lucide-react';
+import { Logo } from '../Logo';
 
 interface InvoiceReceiptModalProps {
   orderCode: string;
@@ -68,6 +69,7 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({
         <div id="printable-receipt" className="p-6 text-gray-800 text-xs space-y-4 font-sans bg-white">
           {/* Store Logo & Header */}
           <div className="text-center border-b pb-4 space-y-1">
+            <Logo className="w-12 h-12 mx-auto mb-1" />
             <h2 className="text-lg font-black text-[#1e0b54] tracking-tight">CHỐNG THẤM 36</h2>
             <p className="text-[11px] text-gray-600 font-medium">
               Chuyên vật liệu chống thấm & keo xây dựng cao cấp

@@ -21,9 +21,11 @@ import {
   ArrowUpRight,
   ClipboardCheck,
   ShoppingCart,
-  Truck
+  Truck,
+  FileSpreadsheet
 } from 'lucide-react';
 import { resetAndSeedDatabase, deleteProduct } from '../../lib/productsService';
+import { ImportExcelModal } from './ImportExcelModal';
 
 interface GoodsModalProps {
   products: Product[];
@@ -188,6 +190,9 @@ export const GoodsModal: React.FC<GoodsModalProps> = ({
   const [ledgerTypeFilter, setLedgerTypeFilter] = useState<string>('Tất cả');
   const [ledgerSearch, setLedgerSearch] = useState<string>('');
   const [selectedDocDetail, setSelectedDocDetail] = useState<{ entry: StockLedgerEntry; product: Product } | null>(null);
+
+  // Import Excel modal state
+  const [showImportExcelModal, setShowImportExcelModal] = useState<boolean>(false);
 
   // Form states for creating/editing
   const [formData, setFormData] = useState<Partial<Product>>({
@@ -357,7 +362,16 @@ export const GoodsModal: React.FC<GoodsModalProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center space-x-2 w-full sm:w-auto">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          <button
+            onClick={() => setShowImportExcelModal(true)}
+            title="Nhập hàng loạt sản phẩm từ file Excel (.xlsx, .xls, .csv)"
+            className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-3 py-2 rounded-md text-xs flex items-center shadow-xs transition-colors"
+          >
+            <FileSpreadsheet className="w-4 h-4 mr-1.5 text-emerald-200" />
+            Import File
+          </button>
+
           <button
             onClick={handleResetFirebase}
             disabled={isResetting}
@@ -370,7 +384,7 @@ export const GoodsModal: React.FC<GoodsModalProps> = ({
 
           <button
             onClick={handleOpenAddModal}
-            className="bg-[#1e0b54] hover:bg-[#15073c] text-white font-bold px-4 py-2 rounded-md text-xs flex items-center shadow-md transition-colors"
+            className="bg-[#1e0b54] hover:bg-[#15073c] text-white font-bold px-3.5 py-2 rounded-md text-xs flex items-center shadow-xs transition-colors"
           >
             <Plus className="w-4 h-4 mr-1 text-amber-400" />
             Thêm hàng hóa mới
@@ -1394,6 +1408,14 @@ export const GoodsModal: React.FC<GoodsModalProps> = ({
           </div>
         </div>
       )}
+
+      {/* Import Excel Modal */}
+      <ImportExcelModal
+        isOpen={showImportExcelModal}
+        onClose={() => setShowImportExcelModal(false)}
+        onSuccess={() => setShowImportExcelModal(false)}
+        existingProducts={products}
+      />
     </div>
   );
 };

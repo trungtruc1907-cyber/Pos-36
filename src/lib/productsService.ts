@@ -132,6 +132,67 @@ export async function deleteProduct(id: string): Promise<void> {
 }
 
 /**
+ * Bulk import multiple products using Firestore writeBatch (handles > 500 items in chunks)
+ */
+export async function importProductsBatch(
+  productsList: Product[],
+  updateExisting = true
+): Promise<{ added: number; updated: number }> {
+  let addedCount = 0;
+  let updatedCount = 0;
+
+  // Get current products to check existence
+  const querySnapshot = await getDocs(collection(db, PRODUCTS_COLLECTION));
+  const existingMap = new Map<string, string>(); // code/id -> docId
+  querySnapshot.docs.forEach((docSnap) => {
+    const data = docSnap.data();
+    existingMap.set(docSnap.id, docSnap.id);
+    if (data.code) existingMap.set(String(data.code).trim().toUpperCase(), docSnap.id);
+  });
+
+  // Process in batches of 450 items
+  const BATCH_SIZE = 450;
+  for (let i = 0; i < productsList.length; i += BATCH_SIZE) {
+    const chunk = productsList.slice(i, i + BATCH_SIZE);
+    const batch = writeBatch(db);
+    const now = new Date().toISOString();
+
+    for (const prod of chunk) {
+      const codeKey = (prod.code || `SP${Date.now()}`).trim().toUpperCase();
+      const existingDocId = existingMap.get(codeKey) || existingMap.get(prod.id);
+
+      if (existingDocId) {
+        if (updateExisting) {
+          const docRef = doc(db, PRODUCTS_COLLECTION, existingDocId);
+          batch.update(docRef, {
+            ...prod,
+            category: prod.nhomHang || prod.category || '',
+            updatedAt: now,
+          });
+          updatedCount++;
+        }
+      } else {
+        const prodId = prod.id || prod.code || `SP${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
+        const docRef = doc(db, PRODUCTS_COLLECTION, prodId);
+        batch.set(docRef, {
+          ...prod,
+          id: prodId,
+          category: prod.nhomHang || prod.category || '',
+          createdAt: now,
+          updatedAt: now,
+        });
+        existingMap.set(codeKey, prodId);
+        addedCount++;
+      }
+    }
+
+    await batch.commit();
+  }
+
+  return { added: addedCount, updated: updatedCount };
+}
+
+/**
  * Force reset/re-seed database
  */
 export async function resetAndSeedDatabase(): Promise<void> {

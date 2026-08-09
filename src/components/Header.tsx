@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ViewMode } from '../types';
+import { Logo } from './Logo';
 import { 
   Search, 
   Truck, 
@@ -65,16 +66,9 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Centered Sailboat Logo with 36 */}
         <div 
           onClick={() => handleSelect('dashboard')} 
-          className="flex flex-col items-center justify-center cursor-pointer select-none"
+          className="flex items-center justify-center cursor-pointer select-none"
         >
-          <div className="relative w-8 h-7 flex items-center justify-center">
-            <svg className="w-8 h-7" viewBox="0 0 100 80" fill="none">
-              <path d="M 46 10 L 18 58 L 46 58 Z" fill="#F59E0B" />
-              <path d="M 54 6 L 84 58 L 54 58 Z" fill="#2563EB" />
-              <path d="M 16 64 L 84 64 L 72 76 L 28 76 Z" fill="#1e0b54" />
-            </svg>
-          </div>
-          <span className="text-[11px] font-black text-[#1e0b54] tracking-tighter leading-none -mt-0.5">36</span>
+          <Logo className="w-8 h-8" />
         </div>
 
         <button 
@@ -95,15 +89,9 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="flex items-center space-x-4">
           <div 
             onClick={() => handleSelect('dashboard')}
-            className="flex items-center space-x-2 cursor-pointer group"
+            className="flex items-center space-x-2 cursor-pointer group hover:opacity-90 transition-opacity"
           >
-            <div className="w-10 h-10 bg-[#1e0b54] rounded-lg flex items-center justify-center text-white font-bold text-lg shadow-xs group-hover:scale-105 transition-transform">
-              <span className="text-amber-400 font-extrabold tracking-tighter">CT36</span>
-            </div>
-            <div>
-              <div className="font-extrabold text-[#1e0b54] leading-none text-base">CHỐNG THẤM 36</div>
-              <div className="text-[10px] text-gray-500 tracking-wider">HỆ THỐNG PHÂN PHỐI</div>
-            </div>
+            <Logo className="w-10 h-10" showText />
           </div>
 
           <div className="relative w-48 sm:w-64">
@@ -532,15 +520,7 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="relative w-4/5 max-w-xs bg-white h-full shadow-2xl flex flex-col z-10">
             {/* Drawer Header */}
             <div className="p-4 bg-[#1e0b54] text-white flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-amber-400 rounded-lg flex items-center justify-center text-[#1e0b54] font-black text-sm">
-                  36
-                </div>
-                <div>
-                  <div className="font-extrabold text-sm leading-none">CHỐNG THẤM 36</div>
-                  <div className="text-[9px] text-indigo-200">HỆ THỐNG PHÂN PHỐI</div>
-                </div>
-              </div>
+              <Logo className="w-8 h-8" showText variant="white" />
               <button
                 onClick={() => setMobileMenuOpen(false)}
                 className="p-1 rounded-md hover:bg-white/10 text-white"

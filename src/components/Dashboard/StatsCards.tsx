@@ -1,5 +1,5 @@
 import React from 'react';
-import { Banknote, RotateCcw, ArrowDown, ArrowUp } from 'lucide-react';
+import { ArrowUp, ArrowDown, CornerUpLeft } from 'lucide-react';
 
 interface StatsCardsProps {
   todayRevenue: number;
@@ -11,81 +11,83 @@ interface StatsCardsProps {
 
 export const StatsCards: React.FC<StatsCardsProps> = ({
   todayRevenue,
+  todayOrdersCount,
   todayReturns,
   vsYesterdayPercent,
   vsLastMonthPercent,
 }) => {
   return (
-    <section className="space-y-3">
-      <h2 className="text-base font-bold text-gray-900 px-0.5">Kết quả bán hàng hôm nay</h2>
+    <section className="bg-white rounded-xl shadow-2xs border border-gray-100 p-5 sm:p-6">
+      <h2 className="text-lg font-bold text-gray-900 mb-5">Kết quả bán hàng hôm nay</h2>
 
-      {/* Row 1: 2 Cards (Doanh thu & Trả hàng) */}
-      <div className="grid grid-cols-2 gap-3">
-        {/* Doanh thu */}
-        <div className="bg-white rounded-xl p-4 shadow-2xs border border-gray-100/80 flex flex-col justify-between">
-          <div className="flex items-center space-x-2 text-gray-500 text-xs font-medium">
-            <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center text-gray-700 shrink-0">
-              <Banknote className="w-4 h-4" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-y-5 sm:gap-y-6 lg:gap-y-0 divide-y sm:divide-y-0 divide-gray-100">
+        
+        {/* Item 1: Doanh thu */}
+        <div className="flex items-start space-x-3.5 pr-0 lg:pr-4 pt-1 sm:pt-0">
+          <div className="w-8 h-8 rounded-full bg-[#1890ff] text-white flex items-center justify-center font-bold text-sm shrink-0 mt-0.5 shadow-2xs">
+            $
+          </div>
+          <div>
+            <div className="text-xs text-gray-500 font-normal">Doanh thu</div>
+            <div className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight leading-snug">
+              {todayRevenue.toLocaleString('vi-VN')}
             </div>
-            <span>Doanh thu</span>
-          </div>
-          <div className="text-xl sm:text-2xl font-bold text-[#1e0b54] mt-2 tracking-tight">
-            {todayRevenue.toLocaleString('vi-VN')}
+            <div className="text-xs text-gray-400 mt-0.5">{todayOrdersCount} hóa đơn</div>
           </div>
         </div>
 
-        {/* Trả hàng */}
-        <div className="bg-white rounded-xl p-4 shadow-2xs border border-gray-100/80 flex flex-col justify-between">
-          <div className="flex items-center space-x-2 text-gray-500 text-xs font-medium">
-            <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center text-gray-700 shrink-0">
-              <RotateCcw className="w-4 h-4" />
+        {/* Item 2: Trả hàng */}
+        <div className="flex items-start space-x-3.5 pt-4 sm:pt-0 lg:px-4 lg:border-l lg:border-gray-200/80">
+          <div className="w-7 h-7 rounded-md bg-[#ff7a00] text-white flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+            <CornerUpLeft className="w-4 h-4 text-white stroke-[2.5]" />
+          </div>
+          <div>
+            <div className="text-xs text-gray-500 font-normal">Trả hàng</div>
+            <div className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight leading-snug">
+              {todayReturns.toLocaleString('vi-VN')}
             </div>
-            <span>Trả hàng</span>
-          </div>
-          <div className="text-xl sm:text-2xl font-bold text-[#1e0b54] mt-2 tracking-tight">
-            {todayReturns.toLocaleString('vi-VN')}
           </div>
         </div>
-      </div>
 
-      {/* Row 2: Doanh thu thuần so với hôm qua */}
-      <div className="bg-white rounded-xl p-3.5 sm:p-4 shadow-2xs border border-gray-100/80 flex items-center justify-between">
-        <span className="text-xs sm:text-sm font-medium text-gray-700">Doanh thu thuần so với hôm qua</span>
-        <div
-          className={`px-3 py-1 rounded-full text-xs font-bold flex items-center space-x-0.5 ${
-            vsYesterdayPercent >= 0
-              ? 'bg-emerald-100/80 text-emerald-700'
-              : 'bg-red-100/80 text-red-600'
-          }`}
-        >
-          {vsYesterdayPercent >= 0 ? (
-            <ArrowUp className="w-3.5 h-3.5 mr-0.5" />
-          ) : (
-            <ArrowDown className="w-3.5 h-3.5 mr-0.5" />
-          )}
-          <span>{vsYesterdayPercent > 0 ? `+${vsYesterdayPercent}%` : `${vsYesterdayPercent}%`}</span>
+        {/* Item 3: Doanh thu thuần - So với hôm qua */}
+        <div className="flex items-start space-x-3 pt-4 sm:pt-0 lg:px-4 lg:border-l lg:border-gray-200/80">
+          <div className="shrink-0 mt-0.5">
+            {vsYesterdayPercent >= 0 ? (
+              <ArrowUp className="w-5 h-5 text-[#00b074] stroke-[2.5]" />
+            ) : (
+              <ArrowDown className="w-5 h-5 text-red-500 stroke-[2.5]" />
+            )}
+          </div>
+          <div>
+            <div className="text-xs text-gray-500 font-normal">Doanh thu thuần</div>
+            <div className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight leading-snug">
+              {vsYesterdayPercent > 0 ? `${vsYesterdayPercent}%` : `${vsYesterdayPercent}%`}
+            </div>
+            <div className="text-xs text-gray-400 mt-0.5">So với hôm qua</div>
+          </div>
         </div>
-      </div>
 
-      {/* Row 3: So với cùng kỳ tháng trước */}
-      <div className="bg-white rounded-xl p-3.5 sm:p-4 shadow-2xs border border-gray-100/80 flex items-center justify-between">
-        <span className="text-xs sm:text-sm font-medium text-gray-700">So với cùng kỳ tháng trước</span>
-        <div
-          className={`px-3 py-1 rounded-full text-xs font-bold flex items-center space-x-0.5 ${
-            vsLastMonthPercent >= 0
-              ? 'bg-emerald-100/80 text-emerald-700'
-              : 'bg-red-100/80 text-red-600'
-          }`}
-        >
-          {vsLastMonthPercent >= 0 ? (
-            <ArrowUp className="w-3.5 h-3.5 mr-0.5" />
-          ) : (
-            <ArrowDown className="w-3.5 h-3.5 mr-0.5" />
-          )}
-          <span>{vsLastMonthPercent > 0 ? `+${vsLastMonthPercent}%` : `${vsLastMonthPercent}%`}</span>
+        {/* Item 4: Doanh thu thuần - So với cùng kỳ tháng trước */}
+        <div className="flex items-start space-x-3 pt-4 sm:pt-0 lg:pl-4 lg:border-l lg:border-gray-200/80">
+          <div className="shrink-0 mt-0.5">
+            {vsLastMonthPercent >= 0 ? (
+              <ArrowUp className="w-5 h-5 text-[#00b074] stroke-[2.5]" />
+            ) : (
+              <ArrowDown className="w-5 h-5 text-red-500 stroke-[2.5]" />
+            )}
+          </div>
+          <div>
+            <div className="text-xs text-gray-500 font-normal">Doanh thu thuần</div>
+            <div className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight leading-snug">
+              {vsLastMonthPercent > 0 ? `${vsLastMonthPercent}%` : `${vsLastMonthPercent}%`}
+            </div>
+            <div className="text-xs text-gray-400 mt-0.5">So với cùng kỳ tháng trước</div>
+          </div>
         </div>
+
       </div>
     </section>
   );
 };
+
 
