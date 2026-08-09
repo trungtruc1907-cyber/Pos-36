@@ -27,7 +27,8 @@ import {
   AlertCircle,
   FileSpreadsheet,
   User,
-  Info
+  Info,
+  X
 } from 'lucide-react';
 
 interface OrdersModalProps {
@@ -40,6 +41,7 @@ interface OrdersModalProps {
   onReprintOrder: (order: Order) => void;
   onUpdateOrder?: (id: string, updates: Partial<Order>) => void;
   onAddPurchase?: (purchase: PurchaseOrder) => void;
+  onAddProduct?: (product: Product) => void;
 }
 
 export const OrdersModal: React.FC<OrdersModalProps> = ({
@@ -52,6 +54,7 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
   onReprintOrder,
   onUpdateOrder,
   onAddPurchase,
+  onAddProduct,
 }) => {
   const [search, setSearch] = useState('');
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
@@ -61,6 +64,16 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
   // Add Purchase Tab state
   const [showAddPurchaseTab, setShowAddPurchaseTab] = useState<boolean>(false);
   const [showExitConfirm, setShowExitConfirm] = useState<boolean>(false);
+
+  // Quick Add Product Modal State
+  const [showQuickAddProdModal, setShowQuickAddProdModal] = useState<boolean>(false);
+  const [quickProdName, setQuickProdName] = useState<string>('');
+  const [quickProdCode, setQuickProdCode] = useState<string>('');
+  const [quickProdUnit, setQuickProdUnit] = useState<string>('bao');
+  const [quickProdCategory, setQuickProdCategory] = useState<string>('Chống thấm');
+  const [quickProdCostPrice, setQuickProdCostPrice] = useState<number | string>(180000);
+  const [quickProdPrice, setQuickProdPrice] = useState<number | string>(250000);
+  const [quickProdQuantity, setQuickProdQuantity] = useState<number | string>(1);
 
   // New Purchase Form local state
   const [newSupplier, setNewSupplier] = useState<string>('Khang Hân (Hồng)');
@@ -92,6 +105,28 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
   React.useEffect(() => {
     setCurrentPage(1);
   }, [currentView]);
+
+  const filteredOrders = orders.filter(
+    (o) =>
+      o.orderCode.toLowerCase().includes(search.toLowerCase()) ||
+      o.customerName.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const filteredPurchases = purchases.filter(
+    (p) =>
+      p.code.toLowerCase().includes(search.toLowerCase()) ||
+      p.supplierName.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const paginatedOrders = React.useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredOrders.slice(start, start + pageSize);
+  }, [filteredOrders, currentPage, pageSize]);
+
+  const paginatedPurchases = React.useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredPurchases.slice(start, start + pageSize);
+  }, [filteredPurchases, currentPage, pageSize]);
 
   const isPurchaseMode = currentView === 'purchases' || currentView === 'purchase-returns';
 
@@ -187,6 +222,64 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
     alert(`Đã lưu phiếu nhập ${code} (${status}) thành công!`);
   };
 
+  const handleOpenQuickAddProdModal = () => {
+    setQuickProdName(prodSearchKey.trim());
+    setQuickProdCode(`SP${Math.floor(100000 + Math.random() * 900000)}`);
+    setQuickProdUnit('bao');
+    setQuickProdCategory('Chống thấm');
+    setQuickProdCostPrice(180000);
+    setQuickProdPrice(250000);
+    setQuickProdQuantity(1);
+    setShowQuickAddProdModal(true);
+  };
+
+  const handleSaveQuickProduct = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickProdName.trim()) {
+      alert('Vui lòng nhập tên hàng hóa!');
+      return;
+    }
+
+    const finalCode = quickProdCode.trim() || `SP${Math.floor(100000 + Math.random() * 900000)}`;
+    const costP = typeof quickProdCostPrice === 'number' ? quickProdCostPrice : (parseFloat(quickProdCostPrice) || 0);
+    const sellP = typeof quickProdPrice === 'number' ? quickProdPrice : (parseFloat(quickProdPrice) || costP);
+    const qty = Math.max(1, typeof quickProdQuantity === 'number' ? quickProdQuantity : (parseInt(quickProdQuantity) || 1));
+
+    const newProd: Product = {
+      id: `prod-${Date.now()}`,
+      code: finalCode,
+      name: quickProdName.trim(),
+      unit: quickProdUnit || 'bao',
+      category: quickProdCategory || 'Chống thấm',
+      price: sellP,
+      costPrice: costP,
+      stock: qty,
+      loaiHang: 'Hàng hóa',
+      dangKinhDoanh: 1,
+      duocBanTrucTiep: 1,
+    };
+
+    if (onAddProduct) {
+      onAddProduct(newProd);
+    }
+
+    setNewPurchaseItems((prev) => [
+      ...prev,
+      {
+        productCode: finalCode,
+        productName: quickProdName.trim(),
+        unit: quickProdUnit || 'bao',
+        quantity: qty,
+        unitPrice: costP,
+        discount: 0,
+      },
+    ]);
+
+    setProdSearchKey('');
+    setShowProdDropdown(false);
+    setShowQuickAddProdModal(false);
+  };
+
   // If user opened "Thêm phiếu nhập" tab
   if (showAddPurchaseTab) {
     const calculatedTotalItems = newPurchaseItems.reduce(
@@ -239,25 +332,14 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
                 />
                 <div className="flex items-center space-x-1.5 ml-2 border-l border-gray-200 pl-2 text-gray-400">
                   <LayoutGrid className="w-4 h-4 hover:text-gray-600 cursor-pointer" />
-                  <Plus
-                    className="w-4 h-4 hover:text-blue-600 cursor-pointer"
-                    onClick={() => {
-                      const name = prompt('Nhập tên hàng hóa mới:');
-                      if (name) {
-                        setNewPurchaseItems((prev) => [
-                          ...prev,
-                          {
-                            productCode: `SP${Math.floor(100000 + Math.random() * 900000)}`,
-                            productName: name,
-                            unit: 'bao',
-                            quantity: 1,
-                            unitPrice: 200000,
-                            discount: 0,
-                          },
-                        ]);
-                      }
-                    }}
-                  />
+                  <button
+                    type="button"
+                    onClick={handleOpenQuickAddProdModal}
+                    className="p-0.5 hover:bg-blue-50 text-gray-500 hover:text-blue-600 rounded transition-colors"
+                    title="Thêm nhanh hàng hóa mới"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
 
@@ -695,31 +777,162 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
             </div>
           </div>
         )}
+
+        {/* Quick Add Product Modal */}
+        {showQuickAddProdModal && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+            <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full overflow-hidden border border-gray-200 animate-in fade-in zoom-in-95">
+              {/* Header */}
+              <div className="bg-[#1e0b54] text-white px-5 py-3.5 flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Plus className="w-5 h-5 text-amber-400" />
+                  <h3 className="font-bold text-sm">Thêm nhanh hàng hóa mới vào phiếu nhập</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowQuickAddProdModal(false)}
+                  className="text-gray-300 hover:text-white p-1 rounded-md transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Form Body */}
+              <form onSubmit={handleSaveQuickProduct} className="p-5 space-y-4 text-xs">
+                {/* Tên sản phẩm */}
+                <div>
+                  <label className="block text-gray-700 font-bold mb-1">
+                    Tên hàng hóa <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={quickProdName}
+                    onChange={(e) => setQuickProdName(e.target.value)}
+                    placeholder="VD: Màng chống thấm Bitum, Keo cấy thép..."
+                    className="w-full p-2.5 border border-gray-300 rounded-lg text-xs font-semibold text-gray-900 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                  />
+                </div>
+
+                {/* Mã hàng & ĐVT */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-gray-700 font-medium mb-1">Mã hàng hóa</label>
+                    <input
+                      type="text"
+                      value={quickProdCode}
+                      onChange={(e) => setQuickProdCode(e.target.value)}
+                      placeholder="Mã tự động"
+                      className="w-full p-2 border border-gray-300 rounded-lg text-xs font-mono font-bold text-blue-700 focus:outline-none focus:border-blue-600"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-gray-700 font-medium mb-1">Đơn vị tính (ĐVT)</label>
+                    <select
+                      value={quickProdUnit}
+                      onChange={(e) => setQuickProdUnit(e.target.value)}
+                      className="w-full p-2 border border-gray-300 rounded-lg text-xs font-medium text-gray-800 focus:outline-none focus:border-blue-600 bg-white"
+                    >
+                      <option value="bao">bao</option>
+                      <option value="can">can</option>
+                      <option value="tuýp">tuýp</option>
+                      <option value="thùng">thùng</option>
+                      <option value="kg">kg</option>
+                      <option value="cuộn">cuộn</option>
+                      <option value="bộ">bộ</option>
+                      <option value="chai">chai</option>
+                      <option value="lít">lít</option>
+                      <option value="m2">m2</option>
+                      <option value="mét">mét</option>
+                      <option value="cặp">cặp</option>
+                      <option value="gói">gói</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Nhóm hàng */}
+                <div>
+                  <label className="block text-gray-700 font-medium mb-1">Nhóm hàng</label>
+                  <select
+                    value={quickProdCategory}
+                    onChange={(e) => setQuickProdCategory(e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded-lg text-xs font-medium text-gray-800 focus:outline-none focus:border-blue-600 bg-white"
+                  >
+                    <option value="Chống thấm">Chống thấm</option>
+                    <option value="Keo dán gạch">Keo dán gạch</option>
+                    <option value="Phụ gia bê tông">Phụ gia bê tông</option>
+                    <option value="Vật tư chống thấm">Vật tư chống thấm</option>
+                    <option value="Sơn chống thấm">Sơn chống thấm</option>
+                    <option value="Dụng cụ thi công">Dụng cụ thi công</option>
+                    <option value="Khác">Khác</option>
+                  </select>
+                </div>
+
+                {/* Price & CostPrice & Quantity */}
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-gray-700 font-medium mb-1">
+                      Giá nhập (Giá vốn)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1000"
+                      value={quickProdCostPrice}
+                      onChange={(e) => setQuickProdCostPrice(e.target.value)}
+                      className="w-full p-2 border border-gray-300 rounded-lg text-xs font-mono font-bold text-gray-900 focus:outline-none focus:border-blue-600"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-gray-700 font-medium mb-1">Giá bán</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1000"
+                      value={quickProdPrice}
+                      onChange={(e) => setQuickProdPrice(e.target.value)}
+                      className="w-full p-2 border border-gray-300 rounded-lg text-xs font-mono font-bold text-blue-800 focus:outline-none focus:border-blue-600"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-gray-700 font-medium mb-1">Số lượng nhập</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={quickProdQuantity}
+                      onChange={(e) => setQuickProdQuantity(e.target.value)}
+                      className="w-full p-2 border border-gray-300 rounded-lg text-xs font-mono font-bold text-emerald-700 focus:outline-none focus:border-blue-600"
+                    />
+                  </div>
+                </div>
+
+                {/* Footer Buttons */}
+                <div className="flex items-center justify-end space-x-2 pt-3 border-t border-gray-200">
+                  <button
+                    type="button"
+                    onClick={() => setShowQuickAddProdModal(false)}
+                    className="px-4 py-2 border border-gray-300 hover:bg-gray-100 font-semibold text-gray-700 rounded-lg transition-colors"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-[#1e0b54] hover:bg-[#15073c] text-white font-bold rounded-lg shadow-sm transition-colors flex items-center space-x-1.5"
+                  >
+                    <Plus className="w-4 h-4 text-amber-400" />
+                    <span>Lưu & Thêm vào phiếu nhập</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
-
-  const filteredOrders = orders.filter(
-    (o) =>
-      o.orderCode.toLowerCase().includes(search.toLowerCase()) ||
-      o.customerName.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const filteredPurchases = purchases.filter(
-    (p) =>
-      p.code.toLowerCase().includes(search.toLowerCase()) ||
-      p.supplierName.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const paginatedOrders = React.useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredOrders.slice(start, start + pageSize);
-  }, [filteredOrders, currentPage, pageSize]);
-
-  const paginatedPurchases = React.useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredPurchases.slice(start, start + pageSize);
-  }, [filteredPurchases, currentPage, pageSize]);
 
   return (
     <div className="flex-1 bg-[#f3f4f6] p-4 flex flex-col space-y-4 overflow-auto">

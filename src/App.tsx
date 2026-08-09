@@ -430,6 +430,7 @@ export default function App() {
               onReprintOrder={handleReprintOrder}
               onUpdateOrder={handleUpdateOrder}
               onAddPurchase={(p) => setPurchases((prev) => [p, ...prev])}
+              onAddProduct={handleAddNewProduct}
             />
           )}
 
