@@ -85,6 +85,10 @@ export const TopChartsSection: React.FC<TopChartsSectionProps> = ({ orders, prod
         ticks: {
           font: { size: 10 },
           color: '#374151',
+          callback: function(this: any, val: any) {
+            const label = this.getLabelForValue(val as number);
+            return typeof label === 'string' && label.length > 20 ? label.substring(0, 18) + '…' : label;
+          },
         },
       },
     },
@@ -136,6 +140,10 @@ export const TopChartsSection: React.FC<TopChartsSectionProps> = ({ orders, prod
         ticks: {
           font: { size: 10 },
           color: '#374151',
+          callback: function(this: any, val: any) {
+            const label = this.getLabelForValue(val as number);
+            return typeof label === 'string' && label.length > 20 ? label.substring(0, 18) + '…' : label;
+          },
         },
       },
     },

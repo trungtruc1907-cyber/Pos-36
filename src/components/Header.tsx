@@ -115,131 +115,146 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Primary Navigation Bar (Navy Blue) */}
-      <div className="bg-[#1e0b54] px-4 flex items-center justify-between text-white overflow-visible">
-        <nav className="flex space-x-1 min-w-max relative">
-          {/* Tổng quan */}
-          <button
-            onClick={() => handleSelect('dashboard')}
-            className={`px-3 py-2.5 font-medium text-sm rounded-t-md transition-colors ${
-              currentView === 'dashboard'
-                ? 'bg-[#15073c] text-white border-b-2 border-amber-400'
-                : 'text-indigo-200 hover:text-white hover:bg-white/10'
-            }`}
-          >
-            Tổng quan
-          </button>
-
-          {/* Hàng hóa (With Submenu) */}
-          <div 
-            className="relative group"
-            onMouseEnter={() => setActiveDropdown('goods')}
-            onMouseLeave={() => setActiveDropdown(null)}
-          >
+      <div className="bg-[#1e0b54] px-2 sm:px-4 flex items-center justify-between text-white relative z-30">
+        <div className={`flex-1 ${activeDropdown ? 'overflow-visible' : 'overflow-x-auto lg:overflow-visible'} scrollbar-none py-0.5`}>
+          <nav className="flex space-x-1 min-w-max lg:min-w-0 relative">
+            {/* Tổng quan */}
             <button
-              onClick={() => handleSelect('goods')}
-              className={`px-3 py-2.5 font-medium text-sm flex items-center transition-colors ${
-                isGoodsActive
+              onClick={() => handleSelect('dashboard')}
+              className={`px-2.5 sm:px-3 py-2.5 font-medium text-xs sm:text-sm rounded-t-md transition-colors ${
+                currentView === 'dashboard'
                   ? 'bg-[#15073c] text-white border-b-2 border-amber-400'
                   : 'text-indigo-200 hover:text-white hover:bg-white/10'
               }`}
             >
-              Hàng hóa
-              <ChevronDown className="w-3.5 h-3.5 ml-1 opacity-70 group-hover:opacity-100" />
+              Tổng quan
             </button>
 
-            {/* Submenu Dropdown for Hàng hóa */}
-            <div className={`absolute left-0 top-full bg-white text-gray-800 shadow-xl rounded-b-lg border border-gray-200 p-4 z-50 transition-all duration-150 w-[380px] ${
-              activeDropdown === 'goods' ? 'block opacity-100' : 'hidden group-hover:block'
-            }`}>
-              <div className="grid grid-cols-2 gap-4">
-                {/* Column 1: Hàng hóa */}
-                <div className="pr-3 border-r border-gray-100">
-                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2.5">
-                    Hàng hóa
-                  </div>
-                  <button
-                    onClick={() => handleSelect('goods')}
-                    className="w-full text-left text-xs font-medium text-gray-800 hover:text-[#1e0b54] hover:bg-indigo-50/70 px-2.5 py-2 rounded transition-colors block"
-                  >
-                    Danh sách hàng hóa
-                  </button>
-                </div>
-
-                {/* Column 2: Kho hàng */}
-                <div className="pl-1">
-                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2.5">
-                    Kho hàng
-                  </div>
-                  <button
-                    onClick={() => handleSelect('stock-check')}
-                    className="w-full text-left text-xs font-medium text-gray-800 hover:text-[#1e0b54] hover:bg-indigo-50/70 px-2.5 py-2 rounded transition-colors block"
-                  >
-                    Kiểm kho
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Mua hàng (With Submenu) */}
-          <div 
-            className="relative group"
-            onMouseEnter={() => setActiveDropdown('purchases')}
-            onMouseLeave={() => setActiveDropdown(null)}
-          >
-            <button
-              onClick={() => handleSelect('purchases')}
-              className={`px-3 py-2.5 font-medium text-sm flex items-center transition-colors ${
-                isPurchasesActive
-                  ? 'bg-[#15073c] text-white border-b-2 border-amber-400'
-                  : 'text-indigo-200 hover:text-white hover:bg-white/10'
-              }`}
+            {/* Hàng hóa (With Submenu) */}
+            <div 
+              className="relative group"
+              onMouseEnter={() => setActiveDropdown('goods')}
+              onMouseLeave={() => setActiveDropdown(null)}
             >
-              Mua hàng
-              <ChevronDown className="w-3.5 h-3.5 ml-1 opacity-70 group-hover:opacity-100" />
-            </button>
+              <button
+                onClick={(e) => {
+                  if (window.innerWidth < 1024) {
+                    e.stopPropagation();
+                    setActiveDropdown(activeDropdown === 'goods' ? null : 'goods');
+                  } else {
+                    handleSelect('goods');
+                  }
+                }}
+                className={`px-2.5 sm:px-3 py-2.5 font-medium text-xs sm:text-sm flex items-center transition-colors ${
+                  isGoodsActive
+                    ? 'bg-[#15073c] text-white border-b-2 border-amber-400'
+                    : 'text-indigo-200 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                Hàng hóa
+                <ChevronDown className="w-3.5 h-3.5 ml-1 opacity-70 group-hover:opacity-100" />
+              </button>
 
-            {/* Submenu Dropdown for Mua hàng */}
-            <div className={`absolute left-0 top-full bg-white text-gray-800 shadow-xl rounded-b-lg border border-gray-200 p-4 z-50 transition-all duration-150 w-[380px] ${
-              activeDropdown === 'purchases' ? 'block opacity-100' : 'hidden group-hover:block'
-            }`}>
-              <div className="grid grid-cols-2 gap-4">
-                {/* Column 1: Nhà cung cấp */}
-                <div className="pr-3 border-r border-gray-100">
-                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2.5">
-                    Nhà cung cấp
-                  </div>
-                  <button
-                    onClick={() => handleSelect('suppliers')}
-                    className="w-full text-left text-xs font-medium text-gray-800 hover:text-[#1e0b54] hover:bg-indigo-50/70 px-2.5 py-2 rounded transition-colors block"
-                  >
-                    Nhà cung cấp
-                  </button>
-                </div>
-
-                {/* Column 2: Mua hàng */}
-                <div className="pl-1">
-                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2.5">
-                    Mua hàng
-                  </div>
-                  <div className="space-y-1">
+              {/* Submenu Dropdown for Hàng hóa */}
+              <div className={`absolute left-0 top-full bg-white text-gray-800 shadow-2xl rounded-b-lg border border-gray-200 p-4 z-50 transition-all duration-150 w-[280px] sm:w-[380px] max-w-[90vw] ${
+                activeDropdown === 'goods' ? 'block opacity-100' : 'hidden group-hover:block'
+              }`}>
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Column 1: Hàng hóa */}
+                  <div className="pr-3 border-r border-gray-100">
+                    <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2.5">
+                      Hàng hóa
+                    </div>
                     <button
-                      onClick={() => handleSelect('purchases')}
+                      onClick={() => handleSelect('goods')}
                       className="w-full text-left text-xs font-medium text-gray-800 hover:text-[#1e0b54] hover:bg-indigo-50/70 px-2.5 py-2 rounded transition-colors block"
                     >
-                      Nhập hàng
+                      Danh sách hàng hóa
                     </button>
+                  </div>
+
+                  {/* Column 2: Kho hàng */}
+                  <div className="pl-1">
+                    <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2.5">
+                      Kho hàng
+                    </div>
                     <button
-                      onClick={() => handleSelect('purchase-returns')}
+                      onClick={() => handleSelect('stock-check')}
                       className="w-full text-left text-xs font-medium text-gray-800 hover:text-[#1e0b54] hover:bg-indigo-50/70 px-2.5 py-2 rounded transition-colors block"
                     >
-                      Trả hàng nhập
+                      Kiểm kho
                     </button>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
+
+            {/* Mua hàng (With Submenu) */}
+            <div 
+              className="relative group"
+              onMouseEnter={() => setActiveDropdown('purchases')}
+              onMouseLeave={() => setActiveDropdown(null)}
+            >
+              <button
+                onClick={(e) => {
+                  if (window.innerWidth < 1024) {
+                    e.stopPropagation();
+                    setActiveDropdown(activeDropdown === 'purchases' ? null : 'purchases');
+                  } else {
+                    handleSelect('purchases');
+                  }
+                }}
+                className={`px-2.5 sm:px-3 py-2.5 font-medium text-xs sm:text-sm flex items-center transition-colors ${
+                  isPurchasesActive
+                    ? 'bg-[#15073c] text-white border-b-2 border-amber-400'
+                    : 'text-indigo-200 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                Mua hàng
+                <ChevronDown className="w-3.5 h-3.5 ml-1 opacity-70 group-hover:opacity-100" />
+              </button>
+
+              {/* Submenu Dropdown for Mua hàng */}
+              <div className={`absolute left-0 top-full bg-white text-gray-800 shadow-2xl rounded-b-lg border border-gray-200 p-4 z-50 transition-all duration-150 w-[280px] sm:w-[380px] max-w-[90vw] ${
+                activeDropdown === 'purchases' ? 'block opacity-100' : 'hidden group-hover:block'
+              }`}>
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Column 1: Nhà cung cấp */}
+                  <div className="pr-3 border-r border-gray-100">
+                    <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2.5">
+                      Nhà cung cấp
+                    </div>
+                    <button
+                      onClick={() => handleSelect('suppliers')}
+                      className="w-full text-left text-xs font-medium text-gray-800 hover:text-[#1e0b54] hover:bg-indigo-50/70 px-2.5 py-2 rounded transition-colors block"
+                    >
+                      Nhà cung cấp
+                    </button>
+                  </div>
+
+                  {/* Column 2: Mua hàng */}
+                  <div className="pl-1">
+                    <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2.5">
+                      Mua hàng
+                    </div>
+                    <div className="space-y-1">
+                      <button
+                        onClick={() => handleSelect('purchases')}
+                        className="w-full text-left text-xs font-medium text-gray-800 hover:text-[#1e0b54] hover:bg-indigo-50/70 px-2.5 py-2 rounded transition-colors block"
+                      >
+                        Nhập hàng
+                      </button>
+                      <button
+                        onClick={() => handleSelect('purchase-returns')}
+                        className="w-full text-left text-xs font-medium text-gray-800 hover:text-[#1e0b54] hover:bg-indigo-50/70 px-2.5 py-2 rounded transition-colors block"
+                      >
+                        Trả hàng nhập
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
 
           {/* Đơn hàng (With Submenu) */}
           <div 
@@ -248,8 +263,15 @@ export const Header: React.FC<HeaderProps> = ({
             onMouseLeave={() => setActiveDropdown(null)}
           >
             <button
-              onClick={() => handleSelect('orders')}
-              className={`px-3 py-2.5 font-medium text-sm flex items-center transition-colors ${
+              onClick={(e) => {
+                if (window.innerWidth < 1024) {
+                  e.stopPropagation();
+                  setActiveDropdown(activeDropdown === 'orders' ? null : 'orders');
+                } else {
+                  handleSelect('orders');
+                }
+              }}
+              className={`px-3 py-2.5 font-medium text-xs sm:text-sm flex items-center transition-colors ${
                 isOrdersActive
                   ? 'bg-[#15073c] text-white border-b-2 border-amber-400'
                   : 'text-indigo-200 hover:text-white hover:bg-white/10'
@@ -260,7 +282,7 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
 
             {/* Submenu Dropdown for Đơn hàng */}
-            <div className={`absolute left-0 top-full bg-white text-gray-800 shadow-xl rounded-b-lg border border-gray-200 p-3 z-50 transition-all duration-150 min-w-[180px] ${
+            <div className={`absolute left-0 top-full bg-white text-gray-800 shadow-2xl rounded-b-lg border border-gray-200 p-3 z-50 transition-all duration-150 min-w-[180px] ${
               activeDropdown === 'orders' ? 'block opacity-100' : 'hidden group-hover:block'
             }`}>
               <div className="space-y-1">
@@ -287,8 +309,15 @@ export const Header: React.FC<HeaderProps> = ({
             onMouseLeave={() => setActiveDropdown(null)}
           >
             <button
-              onClick={() => handleSelect('customers')}
-              className={`px-3 py-2.5 font-medium text-sm flex items-center transition-colors ${
+              onClick={(e) => {
+                if (window.innerWidth < 1024) {
+                  e.stopPropagation();
+                  setActiveDropdown(activeDropdown === 'customers' ? null : 'customers');
+                } else {
+                  handleSelect('customers');
+                }
+              }}
+              className={`px-3 py-2.5 font-medium text-xs sm:text-sm flex items-center transition-colors ${
                 isCustomersActive
                   ? 'bg-[#15073c] text-white border-b-2 border-amber-400'
                   : 'text-indigo-200 hover:text-white hover:bg-white/10'
@@ -299,7 +328,7 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
 
             {/* Submenu Dropdown for Khách hàng */}
-            <div className={`absolute left-0 top-full bg-white text-gray-800 shadow-xl rounded-b-lg border border-gray-200 p-3 z-50 transition-all duration-150 min-w-[180px] ${
+            <div className={`absolute left-0 top-full bg-white text-gray-800 shadow-2xl rounded-b-lg border border-gray-200 p-3 z-50 transition-all duration-150 min-w-[180px] ${
               activeDropdown === 'customers' ? 'block opacity-100' : 'hidden group-hover:block'
             }`}>
               <div className="space-y-1">
@@ -319,22 +348,10 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           </div>
 
-          {/* Nhân viên */}
-          <button
-            onClick={() => handleSelect('employees')}
-            className={`px-3 py-2.5 font-medium text-sm transition-colors ${
-              currentView === 'employees'
-                ? 'bg-[#15073c] text-white border-b-2 border-amber-400'
-                : 'text-indigo-200 hover:text-white hover:bg-white/10'
-            }`}
-          >
-            Nhân viên
-          </button>
-
           {/* Sổ quỹ */}
           <button
             onClick={() => handleSelect('cashbook')}
-            className={`px-3 py-2.5 font-medium text-sm transition-colors ${
+            className={`px-3 py-2.5 font-medium text-xs sm:text-sm transition-colors ${
               currentView === 'cashbook'
                 ? 'bg-[#15073c] text-white border-b-2 border-amber-400'
                 : 'text-indigo-200 hover:text-white hover:bg-white/10'
@@ -350,8 +367,15 @@ export const Header: React.FC<HeaderProps> = ({
             onMouseLeave={() => setActiveDropdown(null)}
           >
             <button
-              onClick={() => handleSelect('reports')}
-              className={`px-3 py-2.5 font-medium text-sm flex items-center transition-colors ${
+              onClick={(e) => {
+                if (window.innerWidth < 1024) {
+                  e.stopPropagation();
+                  setActiveDropdown(activeDropdown === 'reports' ? null : 'reports');
+                } else {
+                  handleSelect('reports');
+                }
+              }}
+              className={`px-3 py-2.5 font-medium text-xs sm:text-sm flex items-center transition-colors ${
                 currentView === 'reports'
                   ? 'bg-[#15073c] text-white border-b-2 border-amber-400'
                   : 'text-indigo-200 hover:text-white hover:bg-white/10'
@@ -362,7 +386,7 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
 
             {/* Submenu Dropdown for Báo cáo */}
-            <div className={`absolute right-0 sm:left-0 top-full bg-white text-gray-800 shadow-xl rounded-b-lg border border-gray-200 p-4 z-50 transition-all duration-150 w-[420px] ${
+            <div className={`absolute right-0 sm:left-0 top-full bg-white text-gray-800 shadow-2xl rounded-b-lg border border-gray-200 p-4 z-50 transition-all duration-150 w-[280px] sm:w-[420px] max-w-[90vw] ${
               activeDropdown === 'reports' ? 'block opacity-100' : 'hidden group-hover:block'
             }`}>
               <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
@@ -434,33 +458,8 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           </div>
 
-          {/* Bán online */}
-          <button
-            onClick={() => handleSelect('online')}
-            className={`px-3 py-2.5 font-medium text-sm transition-colors ${
-              currentView === 'online'
-                ? 'bg-[#15073c] text-white border-b-2 border-amber-400'
-                : 'text-indigo-200 hover:text-white hover:bg-white/10'
-            }`}
-          >
-            Bán online
-          </button>
-
-          {/* Thuế & Kế toán */}
-          <button
-            onClick={() => handleSelect('tax')}
-            className={`px-3 py-2.5 font-medium text-sm transition-colors relative ${
-              currentView === 'tax'
-                ? 'bg-[#15073c] text-white border-b-2 border-amber-400'
-                : 'text-indigo-200 hover:text-white hover:bg-white/10'
-            }`}
-          >
-            Thuế & Kế toán
-            <span className="absolute top-1 right-0 bg-red-500 text-white text-[9px] font-bold px-1 rounded transform translate-x-1 -translate-y-1">
-              Mới
-            </span>
-          </button>
         </nav>
+      </div>
 
         {/* POS Button */}
         <button

@@ -75,6 +75,7 @@ export const PosView: React.FC<PosViewProps> = ({
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
   const [showCatalogDrawer, setShowCatalogDrawer] = useState(false);
   const [posMode, setPosMode] = useState<'fast' | 'standard'>('fast');
+  const [mobileTab, setMobileTab] = useState<'cart' | 'checkout'>('cart');
 
   // New Customer Form State
   const [newCustName, setNewCustName] = useState('');
@@ -456,122 +457,150 @@ export const PosView: React.FC<PosViewProps> = ({
           </div>
         </div>
       </header>
+      <div className="lg:hidden flex border-b border-indigo-900 bg-[#1e0b54] text-white shrink-0">
+        <button
+          onClick={() => setMobileTab('cart')}
+          className={`flex-1 py-2.5 text-xs font-bold text-center border-b-2 flex items-center justify-center gap-1.5 transition-colors ${
+            mobileTab === 'cart'
+              ? 'border-amber-400 bg-[#15073c] text-white'
+              : 'border-transparent text-indigo-200 hover:text-white'
+          }`}
+        >
+          <Package className="w-4 h-4" />
+          Giỏ hàng ({activeTab.cart.reduce((sum, i) => sum + i.quantity, 0)})
+        </button>
+        <button
+          onClick={() => setMobileTab('checkout')}
+          className={`flex-1 py-2.5 text-xs font-bold text-center border-b-2 flex items-center justify-center gap-1.5 transition-colors ${
+            mobileTab === 'checkout'
+              ? 'border-amber-400 bg-[#15073c] text-white'
+              : 'border-transparent text-indigo-200 hover:text-white'
+          }`}
+        >
+          <CreditCard className="w-4 h-4" />
+          Thanh toán ({payableAmount.toLocaleString('vi-VN')}đ)
+        </button>
+      </div>
 
       {/* Main POS Split Screen */}
       <main className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
         {/* LEFT PANEL: CART & SELECTED ITEMS TABLE */}
-        <section className="flex-1 flex flex-col bg-white border-r border-gray-200 overflow-hidden min-w-0">
-          {/* Cart Items Header Table */}
-          <div className="grid grid-cols-[40px_1fr_65px_100px_110px_120px_40px] gap-2 px-3 py-2 bg-gray-100 border-b border-gray-200 text-[11px] font-bold text-gray-600 uppercase tracking-wider sticky top-0 z-10">
-            <div className="text-center">STT</div>
-            <div>Sản phẩm</div>
-            <div className="text-center">ĐVT</div>
-            <div className="text-right">Số lượng</div>
-            <div className="text-right">Đơn giá</div>
-            <div className="text-right">Thành tiền</div>
-            <div className="text-center">Xóa</div>
-          </div>
-
-          {/* Cart Scrollable Items */}
-          <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
-            {activeTab.cart.length > 0 ? (
-              activeTab.cart.map((item, index) => {
-                const itemTotal = item.quantity * item.unitPrice;
-                return (
-                  <div
-                    key={item.product.id}
-                    className="grid grid-cols-[40px_1fr_65px_100px_110px_120px_40px] gap-2 items-center p-2.5 bg-white hover:bg-slate-50 rounded-md border border-gray-200/80 transition-colors group text-xs"
-                  >
-                    {/* STT */}
-                    <div className="text-center font-bold text-gray-400">{index + 1}</div>
-
-                    {/* Product Name & SKU */}
-                    <div className="min-w-0 pr-2">
-                      <div className="font-bold text-gray-900 truncate" title={item.product.name}>
-                        {item.product.name}
-                      </div>
-                      <div className="text-[10px] text-gray-400 font-mono">
-                        {item.product.code}
-                      </div>
-                    </div>
-
-                    {/* Unit Badge */}
-                    <div className="text-center">
-                      <span className="inline-block px-1.5 py-0.5 bg-indigo-50 text-[#1e0b54] font-semibold text-[10px] rounded border border-indigo-100">
-                        {item.product.unit}
-                      </span>
-                    </div>
-
-                    {/* Quantity Control Buttons & Input */}
-                    <div className="flex items-center justify-end space-x-1">
-                      <button
-                        onClick={() => handleUpdateQuantity(item.product.id, item.quantity - 1)}
-                        className="w-6 h-6 bg-gray-100 hover:bg-gray-200 rounded text-gray-700 font-bold flex items-center justify-center transition-colors"
-                      >
-                        -
-                      </button>
-                      <input
-                        type="number"
-                        min="1"
-                        value={item.quantity}
-                        onChange={(e) =>
-                          handleUpdateQuantity(
-                            item.product.id,
-                            parseInt(e.target.value) || 1
-                          )
-                        }
-                        className="w-10 h-6 text-center border border-gray-300 rounded font-bold text-gray-900 text-xs focus:outline-none focus:border-[#1e0b54]"
-                      />
-                      <button
-                        onClick={() => handleUpdateQuantity(item.product.id, item.quantity + 1)}
-                        className="w-6 h-6 bg-gray-100 hover:bg-gray-200 rounded text-gray-700 font-bold flex items-center justify-center transition-colors"
-                      >
-                        +
-                      </button>
-                    </div>
-
-                    {/* Unit Price Input */}
-                    <div className="text-right">
-                      <input
-                        type="number"
-                        value={item.unitPrice}
-                        onChange={(e) =>
-                          handleUpdateUnitPrice(
-                            item.product.id,
-                            parseFloat(e.target.value) || 0
-                          )
-                        }
-                        className="w-24 h-6 text-right border-b border-dashed border-gray-300 focus:border-[#1e0b54] font-mono text-xs text-gray-800 bg-transparent focus:bg-white focus:outline-none"
-                      />
-                    </div>
-
-                    {/* Total Amount */}
-                    <div className="text-right font-bold text-[#1e0b54] font-mono text-xs">
-                      {itemTotal.toLocaleString('vi-VN')}đ
-                    </div>
-
-                    {/* Delete Item Button */}
-                    <div className="flex justify-center">
-                      <button
-                        onClick={() => handleRemoveItem(item.product.id)}
-                        className="text-gray-400 hover:text-red-600 p-1 rounded hover:bg-red-50 transition-colors"
-                        title="Xóa khỏi giỏ"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              <div className="h-64 flex flex-col items-center justify-center text-gray-400 p-8">
-                <Package className="w-12 h-12 mb-2 text-gray-300" />
-                <p className="text-sm font-semibold">Chưa có sản phẩm nào trong giỏ hàng</p>
-                <p className="text-xs text-gray-400 mt-1">
-                  Nhập tên sản phẩm ở thanh tìm kiếm hoặc chọn từ danh mục bên dưới
-                </p>
+        <section className={`flex-1 flex-col bg-white border-r border-gray-200 overflow-hidden min-w-0 ${mobileTab === 'cart' ? 'flex' : 'hidden lg:flex'}`}>
+          <div className="flex-1 overflow-x-auto flex flex-col min-w-0">
+            <div className="min-w-[620px] flex-1 flex flex-col">
+              {/* Cart Items Header Table */}
+              <div className="grid grid-cols-[40px_1fr_65px_100px_110px_120px_40px] gap-2 px-3 py-2 bg-gray-100 border-b border-gray-200 text-[11px] font-bold text-gray-600 uppercase tracking-wider sticky top-0 z-10">
+                <div className="text-center">STT</div>
+                <div>Sản phẩm</div>
+                <div className="text-center">ĐVT</div>
+                <div className="text-right">Số lượng</div>
+                <div className="text-right">Đơn giá</div>
+                <div className="text-right">Thành tiền</div>
+                <div className="text-center">Xóa</div>
               </div>
-            )}
+
+              {/* Cart Scrollable Items */}
+              <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
+                {activeTab.cart.length > 0 ? (
+                  activeTab.cart.map((item, index) => {
+                    const itemTotal = item.quantity * item.unitPrice;
+                    return (
+                      <div
+                        key={item.product.id}
+                        className="grid grid-cols-[40px_1fr_65px_100px_110px_120px_40px] gap-2 items-center p-2.5 bg-white hover:bg-slate-50 rounded-md border border-gray-200/80 transition-colors group text-xs"
+                      >
+                        {/* STT */}
+                        <div className="text-center font-bold text-gray-400">{index + 1}</div>
+
+                        {/* Product Name & SKU */}
+                        <div className="min-w-0 pr-2">
+                          <div className="font-bold text-gray-900 truncate" title={item.product.name}>
+                            {item.product.name}
+                          </div>
+                          <div className="text-[10px] text-gray-400 font-mono">
+                            {item.product.code}
+                          </div>
+                        </div>
+
+                        {/* Unit Badge */}
+                        <div className="text-center">
+                          <span className="inline-block px-1.5 py-0.5 bg-indigo-50 text-[#1e0b54] font-semibold text-[10px] rounded border border-indigo-100">
+                            {item.product.unit}
+                          </span>
+                        </div>
+
+                        {/* Quantity Control Buttons & Input */}
+                        <div className="flex items-center justify-end space-x-1">
+                          <button
+                            onClick={() => handleUpdateQuantity(item.product.id, item.quantity - 1)}
+                            className="w-6 h-6 bg-gray-100 hover:bg-gray-200 rounded text-gray-700 font-bold flex items-center justify-center transition-colors"
+                          >
+                            -
+                          </button>
+                          <input
+                            type="number"
+                            min="1"
+                            value={item.quantity}
+                            onChange={(e) =>
+                              handleUpdateQuantity(
+                                item.product.id,
+                                parseInt(e.target.value) || 1
+                              )
+                            }
+                            className="w-10 h-6 text-center border border-gray-300 rounded font-bold text-gray-900 text-xs focus:outline-none focus:border-[#1e0b54]"
+                          />
+                          <button
+                            onClick={() => handleUpdateQuantity(item.product.id, item.quantity + 1)}
+                            className="w-6 h-6 bg-gray-100 hover:bg-gray-200 rounded text-gray-700 font-bold flex items-center justify-center transition-colors"
+                          >
+                            +
+                          </button>
+                        </div>
+
+                        {/* Unit Price Input */}
+                        <div className="text-right">
+                          <input
+                            type="number"
+                            value={item.unitPrice}
+                            onChange={(e) =>
+                              handleUpdateUnitPrice(
+                                item.product.id,
+                                parseFloat(e.target.value) || 0
+                              )
+                            }
+                            className="w-24 h-6 text-right border-b border-dashed border-gray-300 focus:border-[#1e0b54] font-mono text-xs text-gray-800 bg-transparent focus:bg-white focus:outline-none"
+                          />
+                        </div>
+
+                        {/* Total Amount */}
+                        <div className="text-right font-bold text-[#1e0b54] font-mono text-xs">
+                          {itemTotal.toLocaleString('vi-VN')}đ
+                        </div>
+
+                        {/* Delete Item Button */}
+                        <div className="flex justify-center">
+                          <button
+                            onClick={() => handleRemoveItem(item.product.id)}
+                            className="text-gray-400 hover:text-red-600 p-1 rounded hover:bg-red-50 transition-colors"
+                            title="Xóa khỏi giỏ"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="h-64 flex flex-col items-center justify-center text-gray-400 p-8">
+                    <Package className="w-12 h-12 mb-2 text-gray-300" />
+                    <p className="text-sm font-semibold">Chưa có sản phẩm nào trong giỏ hàng</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Nhập tên sản phẩm ở thanh tìm kiếm hoặc chọn từ danh mục bên dưới
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Cart Bottom Note Field */}
@@ -592,7 +621,7 @@ export const PosView: React.FC<PosViewProps> = ({
         </section>
 
         {/* RIGHT PANEL: CHECKOUT & PAYMENT */}
-        <section className="w-full lg:w-[380px] xl:w-[420px] bg-white flex flex-col border-l border-gray-200 shrink-0 shadow-lg z-20">
+        <section className={`w-full lg:w-[380px] xl:w-[420px] bg-white flex-col border-l border-gray-200 shrink-0 shadow-lg z-20 ${mobileTab === 'checkout' ? 'flex' : 'hidden lg:flex'}`}>
           {/* Customer Selection & DateTime Header */}
           <div className="p-3 bg-slate-50 border-b border-gray-200 space-y-2.5 shrink-0">
             <div className="flex justify-between items-center text-xs">

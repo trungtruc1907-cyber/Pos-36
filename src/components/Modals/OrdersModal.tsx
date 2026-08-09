@@ -789,7 +789,7 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
       </div>
 
       {/* Table Content */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden flex-1">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-x-auto flex-1">
         {isPurchaseMode ? (
           /* Table for Mua hàng / Nhập hàng */
           <table className="w-full text-left text-xs">
