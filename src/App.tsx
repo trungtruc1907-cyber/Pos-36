@@ -27,6 +27,10 @@ import {
   updateCustomer,
   deleteCustomer
 } from './lib/customersService';
+import {
+  subscribePurchases,
+  addPurchase
+} from './lib/purchasesService';
 import { getDashboardStats } from './utils/dashboardUtils';
 
 import { Header } from './components/Header';
@@ -57,7 +61,8 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = subscribeProducts(
       (firebaseProducts) => {
-        setProducts(firebaseProducts);
+        const unique = Array.from(new Map(firebaseProducts.map((p) => [p.id, p])).values());
+        setProducts(unique);
         setLoadingProducts(false);
       },
       (error) => {
@@ -72,7 +77,8 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = subscribeCustomers(
       (firebaseCustomers) => {
-        setCustomers(firebaseCustomers);
+        const unique = Array.from(new Map(firebaseCustomers.map((c) => [c.id, c])).values());
+        setCustomers(unique);
       },
       (error) => {
         console.error('Firebase customers error:', error);
@@ -85,7 +91,8 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = subscribeSuppliers(
       (firebaseSuppliers) => {
-        setSuppliers(firebaseSuppliers);
+        const unique = Array.from(new Map(firebaseSuppliers.map((s) => [s.id, s])).values());
+        setSuppliers(unique);
         setLoadingSuppliers(false);
       },
       (error) => {
@@ -100,12 +107,27 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = subscribeOrders(
       (firebaseOrders) => {
-        setOrders(firebaseOrders);
+        const unique = Array.from(new Map(firebaseOrders.map((o) => [o.id, o])).values());
+        setOrders(unique);
         setLoadingOrders(false);
       },
       (error) => {
         console.error('Firebase orders error:', error);
         setLoadingOrders(false);
+      }
+    );
+    return () => unsubscribe();
+  }, []);
+
+  // Subscribe to Firebase Firestore for purchases real-time data
+  useEffect(() => {
+    const unsubscribe = subscribePurchases(
+      (firebasePurchases) => {
+        const unique = Array.from(new Map(firebasePurchases.map((p) => [p.id, p])).values());
+        setPurchases(unique);
+      },
+      (error) => {
+        console.error('Firebase purchases error:', error);
       }
     );
     return () => unsubscribe();
@@ -202,6 +224,15 @@ export default function App() {
       await deleteSupplier(id);
     } catch (err) {
       console.error('Failed to delete supplier from Firestore:', err);
+    }
+  };
+
+  const handleAddNewPurchase = async (newPurchase: PurchaseOrder) => {
+    try {
+      await addPurchase(newPurchase);
+    } catch (err) {
+      console.error('Failed to add purchase order to Firestore:', err);
+      setPurchases((prev) => [newPurchase, ...prev]);
     }
   };
 
@@ -414,6 +445,7 @@ export default function App() {
             <GoodsModal
               products={products}
               orders={orders}
+              purchases={purchases}
               onAddProduct={handleAddNewProduct}
               onUpdateProduct={handleUpdateProduct}
             />
@@ -429,8 +461,11 @@ export default function App() {
               onSelectView={(v) => setCurrentView(v)}
               onReprintOrder={handleReprintOrder}
               onUpdateOrder={handleUpdateOrder}
-              onAddPurchase={(p) => setPurchases((prev) => [p, ...prev])}
+              onAddPurchase={handleAddNewPurchase}
               onAddProduct={handleAddNewProduct}
+              onUpdateProduct={handleUpdateProduct}
+              onAddSupplier={handleAddNewSupplier}
+              onUpdateSupplier={handleUpdateSupplier}
             />
           )}
 

@@ -90,6 +90,26 @@
         "createdAt": { "type": "string", "description": "Thời gian tạo" }
       },
       "required": ["code", "name"]
+    },
+    "purchases": {
+      "title": "Danh sách Phếu nhập hàng",
+      "description": "Bảng quản lý danh sách phiếu nhập hàng",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "ID phiếu nhập hàng" },
+        "code": { "type": "string", "description": "Mã phiếu nhập hàng" },
+        "supplierName": { "type": "string", "description": "Tên nhà cung cấp" },
+        "date": { "type": "string", "description": "Ngày tạo" },
+        "totalAmount": { "type": "number", "description": "Tổng tiền nhập" },
+        "paidAmount": { "type": "number", "description": "Đã trả nhà cung cấp" },
+        "itemsCount": { "type": "number", "description": "Số lượng sản phẩm nhập" },
+        "status": { "type": "string", "description": "Trạng thái phiếu nhập" },
+        "creator": { "type": "string", "description": "Người tạo" },
+        "buyer": { "type": "string", "description": "Người nhập" },
+        "note": { "type": "string", "description": "Ghi chú" },
+        "discount": { "type": "number", "description": "Giảm giá" }
+      },
+      "required": ["code", "supplierName", "totalAmount"]
     }
   },
   "firestore": {
@@ -108,6 +128,10 @@
     "/customers/{customerId}": {
       "schema": "customers",
       "description": "Danh sách khách hàng"
+    },
+    "/purchases/{purchaseId}": {
+      "schema": "purchases",
+      "description": "Danh sách phiếu nhập hàng"
     }
   }
 }

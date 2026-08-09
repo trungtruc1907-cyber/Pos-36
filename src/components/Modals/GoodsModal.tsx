@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Product, Order } from '../../types';
+import { Product, Order, PurchaseOrder } from '../../types';
 import { 
   Search, 
   Plus, 
@@ -31,6 +31,7 @@ import { Pagination } from '../Pagination';
 interface GoodsModalProps {
   products: Product[];
   orders?: Order[];
+  purchases?: PurchaseOrder[];
   onAddProduct: (product: Product) => void;
   onUpdateProduct: (product: Product) => void;
 }
@@ -48,7 +49,11 @@ export interface StockLedgerEntry {
   note: string;
 }
 
-function buildStockLedger(p: Product, orders: Order[] = []): StockLedgerEntry[] {
+function buildStockLedger(
+  p: Product,
+  orders: Order[] = [],
+  purchases: PurchaseOrder[] = []
+): StockLedgerEntry[] {
   const rawEntries: Array<{
     id: string;
     timestamp: number;
@@ -91,44 +96,90 @@ function buildStockLedger(p: Product, orders: Order[] = []): StockLedgerEntry[] 
         partner: order.customerName || 'Khách lẻ',
         unitPrice: matchItem.unitPrice || p.price,
         changeQty: order.status === 'Trả hàng' ? matchItem.quantity : -matchItem.quantity,
-        note: order.note || 'Bán hàng trực tiếp tại POS',
+        note: order.note || (order.status === 'Trả hàng' ? 'Khách trả hàng' : 'Bán hàng trực tiếp tại POS'),
       });
     }
   });
 
-  // 2. Sample Import / Purchase Receipts (Nhập hàng)
-  const codeNum = Number(p.code.replace(/\D/g, '')) || 100;
-  const baseImportQty = Math.max(10, Math.round(p.stock * 0.7) + 20);
-  rawEntries.push({
-    id: `import-1-${p.id}`,
-    timestamp: new Date('2026-05-15T08:30:00').getTime(),
-    timeStr: '15/05/2026 08:30',
-    docCode: `PN000${(codeNum % 80) + 100}`,
-    docType: 'Nhập hàng',
-    categoryKey: 'import',
-    partner: 'Nhà cung cấp Việt Thái',
-    unitPrice: p.costPrice || Math.round(p.price * 0.8),
-    changeQty: baseImportQty,
-    note: 'Nhập kho hàng từ nhà cung cấp chính',
+  // 2. Purchase Orders / Receipts (Nhập hàng) from real purchases state
+  purchases.forEach((pur) => {
+    if (pur.status === 'Phiếu tạm') return;
+    let matchQty = 0;
+    let matchPrice = p.costPrice || Math.round(p.price * 0.8);
+
+    if (pur.items && pur.items.length > 0) {
+      const matchItem = pur.items.find(
+        (item) =>
+          (item.productCode && item.productCode === p.code) ||
+          (item.productName && item.productName.toLowerCase() === p.name.toLowerCase())
+      );
+      if (matchItem) {
+        matchQty = matchItem.quantity;
+        matchPrice = matchItem.unitPrice || matchItem.importPrice || matchPrice;
+      }
+    }
+
+    if (matchQty > 0) {
+      let ts = Date.now();
+      if (pur.date) {
+        const parts = pur.date.split(' ');
+        if (parts[0] && parts[0].includes('/')) {
+          const [d, m, y] = parts[0].split('/');
+          const time = parts[1] || '12:00';
+          ts = new Date(`${y}-${m}-${d}T${time}:00`).getTime() || Date.now();
+        }
+      }
+      rawEntries.push({
+        id: `pur-${pur.id}-${p.code}`,
+        timestamp: ts,
+        timeStr: pur.date || '05/08/2026 09:20',
+        docCode: pur.code,
+        docType: 'Nhập hàng',
+        categoryKey: 'import',
+        partner: pur.supplierName || 'Nhà cung cấp',
+        unitPrice: matchPrice,
+        changeQty: matchQty,
+        note: pur.note || 'Nhập kho từ phiếu nhập hàng',
+      });
+    }
   });
 
-  if (p.stock > 15) {
-    const importQty2 = Math.round(p.stock * 0.4) + 5;
+  // Baseline purchase receipts if no purchase matches yet
+  const codeNum = Number(p.code.replace(/\D/g, '')) || 100;
+  const hasImport = rawEntries.some((e) => e.categoryKey === 'import');
+  if (!hasImport) {
+    const baseImportQty = Math.max(10, Math.round(p.stock * 0.7) + 20);
     rawEntries.push({
-      id: `import-2-${p.id}`,
-      timestamp: new Date('2026-06-20T10:15:00').getTime(),
-      timeStr: '20/06/2026 10:15',
-      docCode: `PN000${(codeNum % 80) + 120}`,
+      id: `import-1-${p.id}`,
+      timestamp: new Date('2026-05-15T08:30:00').getTime(),
+      timeStr: '15/05/2026 08:30',
+      docCode: `PN000${(codeNum % 80) + 100}`,
       docType: 'Nhập hàng',
       categoryKey: 'import',
-      partner: 'Nhà cung cấp Cường Việt NA',
+      partner: 'Nhà cung cấp Việt Thái',
       unitPrice: p.costPrice || Math.round(p.price * 0.8),
-      changeQty: importQty2,
-      note: 'Nhập bổ sung kho tháng 6',
+      changeQty: baseImportQty,
+      note: 'Nhập kho hàng từ nhà cung cấp chính',
     });
+
+    if (p.stock > 15) {
+      const importQty2 = Math.round(p.stock * 0.4) + 5;
+      rawEntries.push({
+        id: `import-2-${p.id}`,
+        timestamp: new Date('2026-06-20T10:15:00').getTime(),
+        timeStr: '20/06/2026 10:15',
+        docCode: `PN000${(codeNum % 80) + 120}`,
+        docType: 'Nhập hàng',
+        categoryKey: 'import',
+        partner: 'Nhà cung cấp Sika Việt Nam',
+        unitPrice: p.costPrice || Math.round(p.price * 0.8),
+        changeQty: importQty2,
+        note: 'Nhập bổ sung kho tháng 6',
+      });
+    }
   }
 
-  // 3. Sample Stock Audits / Checks (Kiểm kho)
+  // 3. Stock Audits / Checks (Kiểm kho)
   rawEntries.push({
     id: `check-1-${p.id}`,
     timestamp: new Date('2026-07-01T16:00:00').getTime(),
@@ -173,6 +224,7 @@ function buildStockLedger(p: Product, orders: Order[] = []): StockLedgerEntry[] 
 export const GoodsModal: React.FC<GoodsModalProps> = ({
   products,
   orders = [],
+  purchases = [],
   onAddProduct,
   onUpdateProduct,
 }) => {
@@ -493,10 +545,10 @@ export const GoodsModal: React.FC<GoodsModalProps> = ({
                   </td>
                 </tr>
               ) : (
-                paginatedProducts.map((p) => {
+                paginatedProducts.map((p, idx) => {
                   const isExpanded = selectedProductId === p.id;
                   return (
-                    <React.Fragment key={p.id}>
+                    <React.Fragment key={p.id ? `${p.id}-${idx}` : `prod-${idx}`}>
                       <tr
                         onClick={() => setSelectedProductId(isExpanded ? null : p.id)}
                         className={`cursor-pointer transition-colors ${
@@ -794,7 +846,7 @@ export const GoodsModal: React.FC<GoodsModalProps> = ({
                               )}
 
                               {activeTab === 'history' && (() => {
-                                const ledger = buildStockLedger(p, orders);
+                                const ledger = buildStockLedger(p, orders, purchases);
                                 
                                 const filteredLedger = ledger.filter((entry) => {
                                   const matchType =

@@ -61,6 +61,7 @@ export const PosView: React.FC<PosViewProps> = ({
       customerCode: 'KH000009',
       customerName: 'Khách lẻ',
       discount: 0,
+      discountType: 'amount',
       surcharge: 0,
       amountPaid: 0,
       paymentMethod: 'cash',
@@ -88,15 +89,27 @@ export const PosView: React.FC<PosViewProps> = ({
     return tabs.find((t) => t.id === activeTabId) || tabs[0];
   }, [tabs, activeTabId]);
 
+  // Helper for discount calculation
+  const getTabActualDiscount = (tab: InvoiceTab, cartTotal: number) => {
+    if (tab.discountType === 'percent') {
+      return (cartTotal * (tab.discount || 0)) / 100;
+    }
+    return tab.discount || 0;
+  };
+
   // Calculations
   const rawTotal = useMemo(() => {
     return activeTab.cart.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
   }, [activeTab.cart]);
 
+  const actualDiscount = useMemo(() => {
+    return getTabActualDiscount(activeTab, rawTotal);
+  }, [rawTotal, activeTab]);
+
   const payableAmount = useMemo(() => {
-    const net = rawTotal - (activeTab.discount || 0) + (activeTab.surcharge || 0);
+    const net = rawTotal - actualDiscount + (activeTab.surcharge || 0);
     return net > 0 ? net : 0;
-  }, [rawTotal, activeTab.discount, activeTab.surcharge]);
+  }, [rawTotal, actualDiscount, activeTab.surcharge]);
 
   const changeAmount = useMemo(() => {
     return (activeTab.amountPaid || 0) - payableAmount;
@@ -134,6 +147,7 @@ export const PosView: React.FC<PosViewProps> = ({
       customerCode: 'KH000009',
       customerName: 'Khách lẻ',
       discount: 0,
+      discountType: 'amount',
       surcharge: 0,
       amountPaid: 0,
       paymentMethod: 'cash',
@@ -178,7 +192,8 @@ export const PosView: React.FC<PosViewProps> = ({
       }
 
       const newRawTotal = newCart.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
-      const newPayable = newRawTotal - tab.discount + tab.surcharge;
+      const newDisc = getTabActualDiscount(tab, newRawTotal);
+      const newPayable = newRawTotal - newDisc + tab.surcharge;
 
       return {
         ...tab,
@@ -196,7 +211,8 @@ export const PosView: React.FC<PosViewProps> = ({
         item.product.id === productId ? { ...item, quantity: newQty } : item
       );
       const newRawTotal = newCart.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
-      const newPayable = newRawTotal - tab.discount + tab.surcharge;
+      const newDisc = getTabActualDiscount(tab, newRawTotal);
+      const newPayable = newRawTotal - newDisc + tab.surcharge;
       return {
         ...tab,
         cart: newCart,
@@ -211,7 +227,8 @@ export const PosView: React.FC<PosViewProps> = ({
         item.product.id === productId ? { ...item, unitPrice: price } : item
       );
       const newRawTotal = newCart.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
-      const newPayable = newRawTotal - tab.discount + tab.surcharge;
+      const newDisc = getTabActualDiscount(tab, newRawTotal);
+      const newPayable = newRawTotal - newDisc + tab.surcharge;
       return {
         ...tab,
         cart: newCart,
@@ -224,7 +241,8 @@ export const PosView: React.FC<PosViewProps> = ({
     updateActiveTab((tab) => {
       const newCart = tab.cart.filter((item) => item.product.id !== productId);
       const newRawTotal = newCart.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
-      const newPayable = newRawTotal - tab.discount + tab.surcharge;
+      const newDisc = getTabActualDiscount(tab, newRawTotal);
+      const newPayable = newRawTotal - newDisc + tab.surcharge;
       return {
         ...tab,
         cart: newCart,
@@ -238,6 +256,7 @@ export const PosView: React.FC<PosViewProps> = ({
       ...tab,
       cart: [],
       discount: 0,
+      discountType: 'amount',
       surcharge: 0,
       amountPaid: 0,
       note: '',
@@ -297,7 +316,7 @@ export const PosView: React.FC<PosViewProps> = ({
       customerName: activeTab.customerName,
       cart: activeTab.cart,
       subtotal: rawTotal,
-      discount: activeTab.discount,
+      discount: actualDiscount,
       surcharge: activeTab.surcharge,
       amountPaid: activeTab.amountPaid,
       paymentMethod: activeTab.paymentMethod,
@@ -705,21 +724,81 @@ export const PosView: React.FC<PosViewProps> = ({
 
               {/* Giảm giá */}
               <div className="flex justify-between items-center">
-                <span className="font-medium text-gray-600">Giảm giá</span>
-                <div className="flex items-center">
+                <div className="flex flex-col">
+                  <span className="font-medium text-gray-600">Giảm giá</span>
+                  {activeTab.discountType === 'percent' && activeTab.discount > 0 && (
+                    <span className="text-[10px] text-gray-500 font-mono">
+                      ({actualDiscount.toLocaleString('vi-VN')}đ)
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center space-x-1">
                   <input
                     type="number"
-                    value={activeTab.discount || ''}
-                    onChange={(e) =>
-                      updateActiveTab((tab) => ({
-                        ...tab,
-                        discount: parseFloat(e.target.value) || 0,
-                      }))
-                    }
+                    min="0"
+                    max={activeTab.discountType === 'percent' ? 100 : undefined}
+                    value={activeTab.discount === 0 ? '' : activeTab.discount}
+                    onChange={(e) => {
+                      const val = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
+                      updateActiveTab((tab) => {
+                        const discVal = tab.discountType === 'percent' ? (rawTotal * val) / 100 : val;
+                        const newPayable = rawTotal - discVal + tab.surcharge;
+                        return {
+                          ...tab,
+                          discount: val,
+                          amountPaid: newPayable > 0 ? newPayable : 0,
+                        };
+                      });
+                    }}
                     placeholder="0"
-                    className="w-24 text-right border-b border-gray-300 focus:border-[#1e0b54] font-mono text-xs p-0.5 focus:outline-none"
+                    className="w-20 text-right border border-gray-300 rounded px-1.5 py-0.5 focus:border-[#1e0b54] font-mono text-xs focus:outline-none bg-white"
                   />
-                  <span className="ml-1 text-gray-400">đ</span>
+                  <div className="flex border border-gray-300 rounded overflow-hidden text-[10px] font-bold">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        updateActiveTab((tab) => {
+                          const discVal = tab.discount;
+                          const newPayable = rawTotal - discVal + tab.surcharge;
+                          return {
+                            ...tab,
+                            discountType: 'amount',
+                            amountPaid: newPayable > 0 ? newPayable : 0,
+                          };
+                        });
+                      }}
+                      className={`px-1.5 py-0.5 transition-colors ${
+                        (activeTab.discountType || 'amount') === 'amount'
+                          ? 'bg-[#1e0b54] text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                      title="Giảm giá theo số tiền (VND)"
+                    >
+                      VND
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        updateActiveTab((tab) => {
+                          const discVal = (rawTotal * tab.discount) / 100;
+                          const newPayable = rawTotal - discVal + tab.surcharge;
+                          return {
+                            ...tab,
+                            discountType: 'percent',
+                            amountPaid: newPayable > 0 ? newPayable : 0,
+                          };
+                        });
+                      }}
+                      className={`px-1.5 py-0.5 transition-colors ${
+                        activeTab.discountType === 'percent'
+                          ? 'bg-[#1e0b54] text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                      title="Giảm giá theo phần trăm (%)"
+                    >
+                      %
+                    </button>
+                  </div>
                 </div>
               </div>
 

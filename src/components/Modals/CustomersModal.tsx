@@ -359,7 +359,7 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
                 paginatedSuppliers.map((s, idx) => {
                   const isExpanded = expandedSupplierId === s.id;
                   return (
-                    <React.Fragment key={s.id}>
+                    <React.Fragment key={s.id ? `${s.id}-${idx}` : `supp-${idx}`}>
                       <tr
                         onClick={() => toggleExpandSupplier(s.id)}
                         className={`cursor-pointer transition-colors ${
@@ -682,7 +682,7 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
                   const isExpanded = expandedCustomerId === c.id;
                   const customerCode = c.code || `KH${String((idx + 1) * 100).padStart(6, '0')}`;
                   return (
-                    <React.Fragment key={c.id}>
+                    <React.Fragment key={c.id ? `${c.id}-${idx}` : `cust-${idx}`}>
                       <tr
                         onClick={() => toggleExpandCustomer(c.id)}
                         className={`cursor-pointer transition-colors ${
@@ -945,7 +945,7 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
                                             </td>
                                             <td className="p-2.5 text-center">
                                               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-800">
-                                                {ord.status || 'Đã hoàn thành'}
+                                                {!ord.status || ord.status === 'Đã thanh toán' || ord.status === 'Đã hoàn thành' ? 'Hoàn thành' : ord.status}
                                               </span>
                                             </td>
                                           </tr>
@@ -960,7 +960,7 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
                                         </td>
                                         <td className="p-2.5 text-center">
                                           <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-800">
-                                            Đã thanh toán
+                                            Hoàn thành
                                           </span>
                                         </td>
                                       </tr>

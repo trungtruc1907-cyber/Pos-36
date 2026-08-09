@@ -28,7 +28,8 @@ import {
   FileSpreadsheet,
   User,
   Info,
-  X
+  X,
+  CreditCard
 } from 'lucide-react';
 
 interface OrdersModalProps {
@@ -42,6 +43,9 @@ interface OrdersModalProps {
   onUpdateOrder?: (id: string, updates: Partial<Order>) => void;
   onAddPurchase?: (purchase: PurchaseOrder) => void;
   onAddProduct?: (product: Product) => void;
+  onUpdateProduct?: (product: Product) => void;
+  onAddSupplier?: (supplier: Omit<Supplier, 'id'>) => void;
+  onUpdateSupplier?: (id: string, updates: Partial<Supplier>) => void;
 }
 
 export const OrdersModal: React.FC<OrdersModalProps> = ({
@@ -55,6 +59,9 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
   onUpdateOrder,
   onAddPurchase,
   onAddProduct,
+  onUpdateProduct,
+  onAddSupplier,
+  onUpdateSupplier,
 }) => {
   const [search, setSearch] = useState('');
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
@@ -75,13 +82,27 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
   const [quickProdPrice, setQuickProdPrice] = useState<number | string>(250000);
   const [quickProdQuantity, setQuickProdQuantity] = useState<number | string>(1);
 
+  // Quick Add Supplier Modal State
+  const [showQuickAddSuppModal, setShowQuickAddSuppModal] = useState<boolean>(false);
+  const [quickSuppName, setQuickSuppName] = useState<string>('');
+  const [quickSuppCode, setQuickSuppCode] = useState<string>('');
+  const [quickSuppPhone, setQuickSuppPhone] = useState<string>('');
+  const [quickSuppAddress, setQuickSuppAddress] = useState<string>('');
+  const [quickSuppEmail, setQuickSuppEmail] = useState<string>('');
+  const [quickSuppDebt, setQuickSuppDebt] = useState<number | string>(0);
+  const [quickSuppNote, setQuickSuppNote] = useState<string>('');
+
   // New Purchase Form local state
   const [newSupplier, setNewSupplier] = useState<string>('Khang Hân (Hồng)');
+  const [selectedSupplierCode, setSelectedSupplierCode] = useState<string>('');
   const [newPurchaseCode, setNewPurchaseCode] = useState<string>('');
   const [newOrderCode, setNewOrderCode] = useState<string>('');
   const [newInvoiceNo, setNewInvoiceNo] = useState<string>('');
   const [newDiscount, setNewDiscount] = useState<number>(0);
+  const [discountType, setDiscountType] = useState<'amount' | 'percent'>('amount');
   const [newNote, setNewNote] = useState<string>('');
+  const [paidToSupplier, setPaidToSupplier] = useState<number | string>(0);
+  const [paymentMethod, setPaymentMethod] = useState<string>('Tiền mặt');
 
   const [newPurchaseItems, setNewPurchaseItems] = useState<
     {
@@ -104,6 +125,7 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
 
   React.useEffect(() => {
     setCurrentPage(1);
+    setShowAddPurchaseTab(false);
   }, [currentView]);
 
   const filteredOrders = orders.filter(
@@ -175,6 +197,11 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
   const IconComponent = headerInfo.icon;
 
   const handleSaveNewPurchase = (status: 'Phiếu tạm' | 'Đã nhập hàng') => {
+    if (newPurchaseItems.length === 0) {
+      alert('Vui lòng chọn ít nhất 1 sản phẩm để nhập hàng!');
+      return;
+    }
+
     const code = newPurchaseCode.trim() || `PN${String(Math.floor(100000 + Math.random() * 900000))}`;
     const now = new Date();
     const dateFormatted = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
@@ -183,21 +210,26 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
       (sum, item) => sum + (item.quantity * item.unitPrice - item.discount),
       0
     );
-    const calculatedNetTotal = Math.max(0, calculatedTotalItems - newDiscount);
+    const actualDiscount =
+      discountType === 'percent'
+        ? (calculatedTotalItems * newDiscount) / 100
+        : newDiscount;
+    const calculatedNetTotal = Math.max(0, calculatedTotalItems - actualDiscount);
+    const paidVal = typeof paidToSupplier === 'number' ? paidToSupplier : (parseFloat(paidToSupplier as string) || 0);
 
     const createdPurchase: PurchaseOrder = {
       id: `po-${Date.now()}`,
       code,
       date: dateFormatted,
-      supplierName: newSupplier || 'Khang Hân (Hồng)',
+      supplierName: newSupplier.trim() || 'Chưa chọn nhà cung cấp',
       itemsCount: newPurchaseItems.length || 1,
       totalAmount: calculatedNetTotal,
       status,
-      paidAmount: status === 'Đã nhập hàng' ? calculatedNetTotal : 0,
+      paidAmount: status === 'Đã nhập hàng' ? paidVal : 0,
       creator: 'Chống Thấm 36',
       buyer: 'Chống Thấm 36',
       note: newNote,
-      discount: newDiscount,
+      discount: actualDiscount,
       items: newPurchaseItems.map((item) => ({
         productCode: item.productCode,
         productName: item.productName,
@@ -212,14 +244,108 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
       onAddPurchase(createdPurchase);
     }
 
+    if (status === 'Đã nhập hàng') {
+      // 1. Automatically update product stock
+      for (const item of newPurchaseItems) {
+        const prod = products.find(
+          (p) => p.code === item.productCode || p.id === item.productCode
+        );
+        if (prod && onUpdateProduct) {
+          const newStock = Number(prod.stock || 0) + Number(item.quantity || 0);
+          onUpdateProduct({
+            ...prod,
+            stock: newStock,
+            costPrice: item.unitPrice || prod.costPrice,
+          });
+        }
+      }
+
+      // 2. Automatically update supplier debt & total purchased
+      const remainingDebt = calculatedNetTotal - paidVal;
+      const supp = suppliers.find(
+        (s) =>
+          s.name.toLowerCase() === newSupplier.trim().toLowerCase() ||
+          (selectedSupplierCode && s.code === selectedSupplierCode)
+      );
+
+      if (supp && onUpdateSupplier) {
+        const updatedDebt = Number(supp.currentDebt || 0) + remainingDebt;
+        const updatedTotalPurchased = Number(supp.totalPurchased || 0) + calculatedNetTotal;
+        onUpdateSupplier(supp.id, {
+          currentDebt: updatedDebt,
+          totalPurchased: updatedTotalPurchased,
+        });
+      } else if (onAddSupplier && newSupplier.trim()) {
+        const suppCode = selectedSupplierCode || `NCC${Math.floor(100000 + Math.random() * 900000)}`;
+        onAddSupplier({
+          code: suppCode,
+          name: newSupplier.trim(),
+          phone: '',
+          email: '',
+          address: '',
+          note: 'Tự động tạo khi hoàn thành phiếu nhập',
+          currentDebt: remainingDebt,
+          totalPurchased: calculatedNetTotal,
+        });
+      }
+    }
+
     setNewPurchaseItems([]);
     setNewPurchaseCode('');
     setNewOrderCode('');
     setNewInvoiceNo('');
     setNewDiscount(0);
     setNewNote('');
+    setPaidToSupplier(0);
     setShowAddPurchaseTab(false);
-    alert(`Đã lưu phiếu nhập ${code} (${status}) thành công!`);
+    alert(
+      status === 'Đã nhập hàng'
+        ? `Đã hoàn thành phiếu nhập ${code}! Tồn kho hàng hóa và công nợ nhà cung cấp đã được tự động cập nhật.`
+        : `Đã lưu tạm phiếu nhập ${code}!`
+    );
+  };
+
+  const handleOpenQuickAddSuppModal = () => {
+    setQuickSuppName(newSupplier.trim());
+    const nextNum = suppliers.length + 1;
+    setQuickSuppCode(`NCC${String(nextNum).padStart(6, '0')}`);
+    setQuickSuppPhone('');
+    setQuickSuppAddress('');
+    setQuickSuppEmail('');
+    setQuickSuppDebt(0);
+    setQuickSuppNote('');
+    setShowQuickAddSuppModal(true);
+  };
+
+  const handleSaveQuickSupplier = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickSuppName.trim()) {
+      alert('Vui lòng nhập tên Nhà cung cấp!');
+      return;
+    }
+
+    const finalCode = quickSuppCode.trim() || `NCC${Math.floor(100000 + Math.random() * 900000)}`;
+    const initialDebt = typeof quickSuppDebt === 'number' ? quickSuppDebt : (parseFloat(quickSuppDebt as string) || 0);
+
+    const newSupp: Omit<Supplier, 'id'> = {
+      code: finalCode,
+      name: quickSuppName.trim(),
+      phone: quickSuppPhone.trim(),
+      email: quickSuppEmail.trim(),
+      address: quickSuppAddress.trim(),
+      note: quickSuppNote.trim(),
+      currentDebt: initialDebt,
+      totalPurchased: 0,
+    };
+
+    if (onAddSupplier) {
+      onAddSupplier(newSupp);
+    }
+
+    setNewSupplier(quickSuppName.trim());
+    setSelectedSupplierCode(finalCode);
+    setShowSuppDropdown(false);
+    setShowQuickAddSuppModal(false);
   };
 
   const handleOpenQuickAddProdModal = () => {
@@ -286,7 +412,11 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
       (sum, item) => sum + (item.quantity * item.unitPrice - item.discount),
       0
     );
-    const calculatedNetTotal = Math.max(0, calculatedTotalItems - newDiscount);
+    const actualDiscount =
+      discountType === 'percent'
+        ? (calculatedTotalItems * newDiscount) / 100
+        : newDiscount;
+    const calculatedNetTotal = Math.max(0, calculatedTotalItems - actualDiscount);
 
     const defaultProductsList = products && products.length > 0 ? products : [
       { id: '1', code: 'SP2511189', name: 'Ramset Vitec 5006 (tuýp)', unit: 'tuýp', importPrice: 480000, stock: 12 },
@@ -347,9 +477,9 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
               {showProdDropdown && prodSearchKey && (
                 <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-50 max-h-60 overflow-y-auto">
                   {filteredProdOptions.length > 0 ? (
-                    filteredProdOptions.map((p) => (
+                    filteredProdOptions.map((p, pIdx) => (
                       <div
-                        key={p.id}
+                        key={p.id ? `${p.id}-${pIdx}` : `prod-opt-${pIdx}`}
                         onClick={() => {
                           setNewPurchaseItems((prev) => {
                             const existingIdx = prev.findIndex((item) => item.productCode === p.code);
@@ -365,7 +495,7 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
                                 productName: p.name,
                                 unit: p.unit || 'bao',
                                 quantity: 1,
-                                unitPrice: p.importPrice || 180000,
+                                unitPrice: p.costPrice ?? (p as any).importPrice ?? 0,
                                 discount: 0,
                               },
                             ];
@@ -381,7 +511,7 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
                         </div>
                         <div className="text-right">
                           <span className="font-mono font-bold text-gray-800">
-                            {(p.importPrice || 180000).toLocaleString('vi-VN')}đ
+                            {(p.costPrice ?? (p as any).importPrice ?? 0).toLocaleString('vi-VN')}đ
                           </span>
                           <span className="text-[11px] text-gray-500 block">Tồn: {p.stock}</span>
                         </div>
@@ -604,39 +734,64 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
                         setNewSupplier(e.target.value);
                         setShowSuppDropdown(true);
                       }}
-                      placeholder="Tìm nhà cung cấp"
+                      onFocus={() => setShowSuppDropdown(true)}
+                      placeholder="Tìm kiếm nhà cung cấp (F4)"
                       className="w-full text-xs font-semibold text-gray-800 placeholder-gray-400 bg-transparent focus:outline-none"
                     />
                   </div>
                   <button
                     type="button"
-                    onClick={() => {
-                      const sName = prompt('Nhập tên Nhà cung cấp mới:');
-                      if (sName) setNewSupplier(sName);
-                    }}
-                    className="p-1.5 border border-gray-300 hover:bg-gray-100 rounded-lg text-gray-600"
-                    title="Thêm Nhà cung cấp"
+                    onClick={handleOpenQuickAddSuppModal}
+                    className="p-1.5 border border-gray-300 hover:bg-blue-50 hover:text-blue-600 rounded-lg text-gray-600 transition-colors"
+                    title="Thêm Nhà cung cấp mới"
                   >
                     <Plus className="w-4 h-4" />
                   </button>
                 </div>
 
                 {showSuppDropdown && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto">
-                    {['Khang Hân (Hồng)', 'Công ty Sika Việt Nam', 'Tổng kho Vitec', 'Nhà cung cấp vật tư 36']
-                      .filter((s) => s.toLowerCase().includes(newSupplier.toLowerCase()))
-                      .map((sName, i) => (
-                        <div
-                          key={i}
-                          onClick={() => {
-                            setNewSupplier(sName);
-                            setShowSuppDropdown(false);
-                          }}
-                          className="p-2 hover:bg-blue-50 cursor-pointer text-xs font-medium text-gray-800 border-b border-gray-100"
-                        >
-                          {sName}
-                        </div>
-                      ))}
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-50 max-h-56 overflow-y-auto">
+                    {suppliers.filter(
+                      (s) =>
+                        s.name.toLowerCase().includes(newSupplier.toLowerCase()) ||
+                        s.code.toLowerCase().includes(newSupplier.toLowerCase()) ||
+                        s.phone.includes(newSupplier)
+                    ).length > 0 ? (
+                      suppliers
+                        .filter(
+                          (s) =>
+                            s.name.toLowerCase().includes(newSupplier.toLowerCase()) ||
+                            s.code.toLowerCase().includes(newSupplier.toLowerCase()) ||
+                            s.phone.includes(newSupplier)
+                        )
+                        .map((s, sIdx) => (
+                          <div
+                            key={s.id ? `${s.id}-${sIdx}` : `supp-opt-${sIdx}`}
+                            onClick={() => {
+                              setNewSupplier(s.name);
+                              setSelectedSupplierCode(s.code);
+                              setShowSuppDropdown(false);
+                            }}
+                            className="p-2 hover:bg-blue-50 cursor-pointer text-xs border-b border-gray-100 flex justify-between items-center"
+                          >
+                            <div>
+                              <span className="font-mono font-bold text-blue-600 mr-2">{s.code}</span>
+                              <span className="font-semibold text-gray-900">{s.name}</span>
+                              {s.phone && <span className="text-gray-500 text-[11px] ml-1">({s.phone})</span>}
+                            </div>
+                            <div className="text-right">
+                              <span className="text-[11px] text-gray-500">Nợ: </span>
+                              <span className="font-mono font-bold text-rose-600">
+                                {(s.currentDebt || 0).toLocaleString('vi-VN')}đ
+                              </span>
+                            </div>
+                          </div>
+                        ))
+                    ) : (
+                      <div className="p-3 text-center text-xs text-gray-500">
+                        Không tìm thấy nhà cung cấp. Click dấu <Plus className="w-3.5 h-3.5 inline mx-0.5 text-blue-600" /> để thêm mới!
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -693,13 +848,53 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
                   </div>
 
                   <div className="flex justify-between items-center">
-                    <span className="text-gray-600 font-medium">Giảm giá</span>
-                    <input
-                      type="number"
-                      value={newDiscount}
-                      onChange={(e) => setNewDiscount(parseFloat(e.target.value) || 0)}
-                      className="w-28 text-right font-mono border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:border-blue-600"
-                    />
+                    <div className="flex flex-col">
+                      <span className="text-gray-600 font-medium">Giảm giá</span>
+                      {discountType === 'percent' && newDiscount > 0 && (
+                        <span className="text-[10px] text-gray-500 font-mono">
+                          ({actualDiscount.toLocaleString('vi-VN')}đ)
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      <input
+                        type="number"
+                        min="0"
+                        max={discountType === 'percent' ? 100 : undefined}
+                        value={newDiscount === 0 ? '' : newDiscount}
+                        onChange={(e) =>
+                          setNewDiscount(e.target.value === '' ? 0 : parseFloat(e.target.value) || 0)
+                        }
+                        placeholder="0"
+                        className="w-20 text-right font-mono border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:border-blue-600 bg-white"
+                      />
+                      <div className="flex border border-gray-300 rounded overflow-hidden text-[10px] font-bold">
+                        <button
+                          type="button"
+                          onClick={() => setDiscountType('amount')}
+                          className={`px-1.5 py-1 transition-colors ${
+                            discountType === 'amount'
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          }`}
+                          title="Giảm giá theo số tiền (VND)"
+                        >
+                          VND
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDiscountType('percent')}
+                          className={`px-1.5 py-1 transition-colors ${
+                            discountType === 'percent'
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          }`}
+                          title="Giảm giá theo phần trăm (%)"
+                        >
+                          %
+                        </button>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="flex justify-between items-center pt-1 font-bold">
@@ -707,6 +902,44 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
                     <span className="font-mono text-blue-600 text-sm">
                       {calculatedNetTotal.toLocaleString('vi-VN')}
                     </span>
+                  </div>
+
+                  {/* Tiền trả nhà cung cấp (F8) */}
+                  <div className="pt-2 border-t border-dashed border-gray-200 space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-700 font-medium flex items-center space-x-1">
+                        <span>Tiền trả nhà cung cấp (F8)</span>
+                        <CreditCard className="w-4 h-4 text-blue-600 ml-1 inline shrink-0" />
+                      </span>
+                      <input
+                        type="number"
+                        min="0"
+                        value={paidToSupplier}
+                        onChange={(e) => setPaidToSupplier(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
+                        className="w-32 text-right font-mono font-bold border border-gray-300 rounded px-2 py-1 text-xs text-gray-900 focus:outline-none focus:border-blue-600 bg-white"
+                        placeholder="0"
+                      />
+                    </div>
+
+                    <div className="text-gray-500 text-[11px] font-medium flex justify-between items-center">
+                      <span>Tiền mặt</span>
+                      <select
+                        value={paymentMethod}
+                        onChange={(e) => setPaymentMethod(e.target.value)}
+                        className="text-[11px] text-gray-600 bg-transparent border-none focus:outline-none font-medium cursor-pointer"
+                      >
+                        <option value="Tiền mặt">Tiền mặt</option>
+                        <option value="Chuyển khoản">Chuyển khoản</option>
+                        <option value="Thẻ">Thẻ</option>
+                      </select>
+                    </div>
+
+                    <div className="flex justify-between items-center pt-1 text-xs font-bold">
+                      <span className="text-gray-800">Tính vào công nợ</span>
+                      <span className={`font-mono text-sm ${(typeof paidToSupplier === 'number' ? paidToSupplier : (parseFloat(paidToSupplier as string) || 0)) - calculatedNetTotal < 0 ? 'text-gray-900' : 'text-emerald-600'}`}>
+                        {((typeof paidToSupplier === 'number' ? paidToSupplier : (parseFloat(paidToSupplier as string) || 0)) - calculatedNetTotal).toLocaleString('vi-VN')}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -930,6 +1163,131 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
             </div>
           </div>
         )}
+        {/* Quick Add Supplier Modal */}
+        {showQuickAddSuppModal && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+            <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full overflow-hidden border border-gray-200 animate-in fade-in zoom-in-95">
+              {/* Header */}
+              <div className="bg-[#1e0b54] text-white px-5 py-3.5 flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Plus className="w-5 h-5 text-amber-400" />
+                  <h3 className="font-bold text-sm">Thêm nhanh Nhà cung cấp mới</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowQuickAddSuppModal(false)}
+                  className="text-gray-300 hover:text-white p-1 rounded-md transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Form Body */}
+              <form onSubmit={handleSaveQuickSupplier} className="p-5 space-y-3.5 text-xs">
+                <div>
+                  <label className="block text-gray-700 font-bold mb-1">
+                    Tên Nhà cung cấp <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={quickSuppName}
+                    onChange={(e) => setQuickSuppName(e.target.value)}
+                    placeholder="VD: Công ty Sika Việt Nam, Vitec, Bestmix..."
+                    className="w-full p-2.5 border border-gray-300 rounded-lg text-xs font-semibold text-gray-900 focus:outline-none focus:border-blue-600"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-gray-700 font-medium mb-1">Mã nhà cung cấp</label>
+                    <input
+                      type="text"
+                      value={quickSuppCode}
+                      onChange={(e) => setQuickSuppCode(e.target.value)}
+                      placeholder="Mã tự động"
+                      className="w-full p-2 border border-gray-300 rounded-lg text-xs font-mono font-bold text-blue-700 focus:outline-none focus:border-blue-600"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-gray-700 font-medium mb-1">Số điện thoại</label>
+                    <input
+                      type="text"
+                      value={quickSuppPhone}
+                      onChange={(e) => setQuickSuppPhone(e.target.value)}
+                      placeholder="VD: 0987654321"
+                      className="w-full p-2 border border-gray-300 rounded-lg text-xs font-mono font-medium text-gray-900 focus:outline-none focus:border-blue-600"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-gray-700 font-medium mb-1">Địa chỉ</label>
+                    <input
+                      type="text"
+                      value={quickSuppAddress}
+                      onChange={(e) => setQuickSuppAddress(e.target.value)}
+                      placeholder="Hà Nội, Thanh Hóa..."
+                      className="w-full p-2 border border-gray-300 rounded-lg text-xs text-gray-900 focus:outline-none focus:border-blue-600"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-gray-700 font-medium mb-1">Email</label>
+                    <input
+                      type="email"
+                      value={quickSuppEmail}
+                      onChange={(e) => setQuickSuppEmail(e.target.value)}
+                      placeholder="contact@nhacungcap.vn"
+                      className="w-full p-2 border border-gray-300 rounded-lg text-xs text-gray-900 focus:outline-none focus:border-blue-600"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-gray-700 font-medium mb-1">Nợ cần trả hiện tại (Công nợ ban đầu)</label>
+                  <input
+                    type="number"
+                    value={quickSuppDebt}
+                    onChange={(e) => setQuickSuppDebt(e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded-lg text-xs font-mono font-bold text-rose-600 focus:outline-none focus:border-blue-600"
+                    placeholder="0"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-gray-700 font-medium mb-1">Ghi chú</label>
+                  <textarea
+                    rows={2}
+                    value={quickSuppNote}
+                    onChange={(e) => setQuickSuppNote(e.target.value)}
+                    placeholder="Ghi chú thêm về nhà cung cấp..."
+                    className="w-full p-2 border border-gray-300 rounded-lg text-xs text-gray-800 focus:outline-none focus:border-blue-600"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end space-x-2 pt-3 border-t border-gray-200">
+                  <button
+                    type="button"
+                    onClick={() => setShowQuickAddSuppModal(false)}
+                    className="px-4 py-2 border border-gray-300 hover:bg-gray-100 font-semibold text-gray-700 rounded-lg transition-colors"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-[#1e0b54] hover:bg-[#15073c] text-white font-bold rounded-lg shadow-sm transition-colors flex items-center space-x-1.5"
+                  >
+                    <Plus className="w-4 h-4 text-amber-400" />
+                    <span>Lưu Nhà cung cấp</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -1065,11 +1423,11 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
                   </td>
                 </tr>
               ) : (
-                paginatedPurchases.map((p) => {
+                paginatedPurchases.map((p, pIdx) => {
                   const isExpanded = expandedOrderId === p.id;
 
                   return (
-                    <React.Fragment key={p.id}>
+                    <React.Fragment key={p.id ? `${p.id}-${pIdx}` : `purch-${pIdx}`}>
                       <tr
                         onClick={() => toggleExpandOrder(p.id)}
                         className={`cursor-pointer transition-colors ${
@@ -1428,7 +1786,7 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
                     const itemCount = ord.items ? ord.items.reduce((sum, item) => sum + item.quantity, 0) : 1;
 
                     return (
-                      <React.Fragment key={ord.id}>
+                      <React.Fragment key={ord.id ? `${ord.id}-${idx}` : `ord-${idx}`}>
                         <tr
                           onClick={() => toggleExpandOrder(ord.id)}
                           className={`cursor-pointer transition-colors ${

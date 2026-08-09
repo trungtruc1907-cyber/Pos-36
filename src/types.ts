@@ -58,6 +58,7 @@ export interface InvoiceTab {
   customerCode?: string;
   customerName: string;
   discount: number;
+  discountType?: 'amount' | 'percent';
   surcharge: number;
   amountPaid: number;
   paymentMethod: PaymentMethod;
@@ -141,6 +142,8 @@ export interface PurchaseOrder {
   discount?: number;
   paidAmount?: number;
   note?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface ActivityLog {
