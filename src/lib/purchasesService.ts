@@ -49,26 +49,8 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
  * Seed initial purchases if collection is empty
  */
 export async function seedPurchasesIfEmpty(): Promise<void> {
-  try {
-    const querySnapshot = await getDocs(collection(db, PURCHASES_COLLECTION));
-    if (querySnapshot.empty) {
-      console.log('Purchases collection is empty. Seeding initial purchase records...');
-      const batch = writeBatch(db);
-      for (const pur of INITIAL_PURCHASES) {
-        const id = pur.id || `pn_${pur.code}`;
-        const docRef = doc(db, PURCHASES_COLLECTION, id);
-        batch.set(docRef, {
-          ...pur,
-          id,
-          createdAt: new Date().toISOString()
-        });
-      }
-      await batch.commit();
-      console.log('Seeded initial purchases successfully!');
-    }
-  } catch (error) {
-    console.error('Error seeding purchases:', error);
-  }
+  // Demo auto-seeding disabled
+  return;
 }
 
 /**
@@ -79,10 +61,6 @@ export function subscribePurchases(
   onError?: (err: Error) => void
 ) {
   const colRef = collection(db, PURCHASES_COLLECTION);
-
-  seedPurchasesIfEmpty().then(() => {
-    // seeded
-  }).catch((err) => console.error(err));
 
   return onSnapshot(
     colRef,
@@ -99,14 +77,14 @@ export function subscribePurchases(
           code: data.code || docSnap.id,
           supplierName: data.supplierName || 'Chưa chọn nhà cung cấp',
           date: data.date || '',
-          totalAmount: Number(data.totalAmount || 0),
-          paidAmount: Number(data.paidAmount || 0),
-          itemsCount: Number(data.itemsCount || (data.items ? data.items.length : 1)),
+          totalAmount: isNaN(Number(data.totalAmount)) ? 0 : Number(data.totalAmount || 0),
+          paidAmount: isNaN(Number(data.paidAmount)) ? 0 : Number(data.paidAmount || 0),
+          itemsCount: isNaN(Number(data.itemsCount)) ? (data.items ? data.items.length : 1) : Number(data.itemsCount || 1),
           status: data.status || 'Đã nhập hàng',
           creator: data.creator || 'Chống Thấm 36',
           buyer: data.buyer || 'Chống Thấm 36',
           note: data.note || '',
-          discount: Number(data.discount || 0),
+          discount: isNaN(Number(data.discount)) ? 0 : Number(data.discount || 0),
           items: data.items || [],
           createdAt: data.createdAt || '',
           updatedAt: data.updatedAt || '',

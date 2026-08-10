@@ -43,6 +43,7 @@ interface OrdersModalProps {
   onReprintOrder: (order: Order) => void;
   onUpdateOrder?: (id: string, updates: Partial<Order>) => void;
   onAddPurchase?: (purchase: PurchaseOrder) => void;
+  onUpdatePurchase?: (id: string, updates: Partial<PurchaseOrder>) => void;
   onAddProduct?: (product: Product) => void;
   onUpdateProduct?: (product: Product) => void;
   onAddSupplier?: (supplier: Omit<Supplier, 'id'>) => void;
@@ -59,6 +60,7 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
   onReprintOrder,
   onUpdateOrder,
   onAddPurchase,
+  onUpdatePurchase,
   onAddProduct,
   onUpdateProduct,
   onAddSupplier,
@@ -71,6 +73,7 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
 
   // Add Purchase Tab state
   const [showAddPurchaseTab, setShowAddPurchaseTab] = useState<boolean>(false);
+  const [editingPurchaseId, setEditingPurchaseId] = useState<string | null>(null);
   const [showExitConfirm, setShowExitConfirm] = useState<boolean>(false);
 
   // Quick Add Product Modal State
@@ -217,6 +220,42 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
   const headerInfo = getHeaderInfo();
   const IconComponent = headerInfo.icon;
 
+  const handleOpenEditPurchase = (p: PurchaseOrder) => {
+    setEditingPurchaseId(p.id);
+    setNewPurchaseCode(p.code || '');
+    setNewSupplier(p.supplierName || 'Khang Hân (Hồng)');
+
+    const matchedSupp = suppliers.find((s) => s.name === p.supplierName);
+    setSelectedSupplierCode(matchedSupp ? matchedSupp.code : '');
+
+    setNewNote(p.note || '');
+    setNewDiscount(p.discount || 0);
+    setDiscountType('amount');
+    setPaidToSupplier(p.paidAmount || 0);
+
+    if (p.items && p.items.length > 0) {
+      setNewPurchaseItems(
+        p.items.map((it) => {
+          const matchedProd = products.find(
+            (prod) => prod.code === it.productCode || prod.name === it.productName
+          );
+          return {
+            productCode: it.productCode || matchedProd?.code || '',
+            productName: it.productName || matchedProd?.name || '',
+            unit: matchedProd?.unit || 'bao',
+            quantity: it.quantity || 1,
+            unitPrice: it.unitPrice || it.importPrice || matchedProd?.importPrice || 0,
+            discount: it.discount || 0,
+          };
+        })
+      );
+    } else {
+      setNewPurchaseItems([]);
+    }
+
+    setShowAddPurchaseTab(true);
+  };
+
   const handleSaveNewPurchase = (status: 'Phiếu tạm' | 'Đã nhập hàng') => {
     if (newPurchaseItems.length === 0) {
       alert('Vui lòng chọn ít nhất 1 sản phẩm để nhập hàng!');
@@ -236,19 +275,15 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
         ? (calculatedTotalItems * newDiscount) / 100
         : newDiscount;
     const calculatedNetTotal = Math.max(0, calculatedTotalItems - actualDiscount);
-    const paidVal = typeof paidToSupplier === 'number' ? paidToSupplier : (parseFloat(paidToSupplier as string) || 0);
+    const paidVal = (typeof paidToSupplier === 'number' && !isNaN(paidToSupplier)) ? paidToSupplier : (parseFloat(paidToSupplier as string) || 0);
 
-    const createdPurchase: PurchaseOrder = {
-      id: `po-${Date.now()}`,
+    const purchasePayload: Partial<PurchaseOrder> = {
       code,
-      date: dateFormatted,
       supplierName: newSupplier.trim() || 'Chưa chọn nhà cung cấp',
       itemsCount: newPurchaseItems.length || 1,
       totalAmount: calculatedNetTotal,
       status,
-      paidAmount: status === 'Đã nhập hàng' ? paidVal : 0,
-      creator: 'Chống Thấm 36',
-      buyer: 'Chống Thấm 36',
+      paidAmount: status === 'Đã nhập hàng' ? paidVal : (paidVal || 0),
       note: newNote,
       discount: actualDiscount,
       items: newPurchaseItems.map((item) => ({
@@ -261,8 +296,31 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
       })),
     };
 
-    if (onAddPurchase) {
-      onAddPurchase(createdPurchase);
+    if (editingPurchaseId) {
+      if (onUpdatePurchase) {
+        onUpdatePurchase(editingPurchaseId, purchasePayload);
+      } else if (onAddPurchase) {
+        onAddPurchase({
+          id: editingPurchaseId,
+          date: dateFormatted,
+          creator: 'Chống Thấm 36',
+          buyer: 'Chống Thấm 36',
+          ...purchasePayload,
+        } as PurchaseOrder);
+      }
+    } else {
+      const createdPurchase: PurchaseOrder = {
+        id: `po-${Date.now()}`,
+        code,
+        date: dateFormatted,
+        creator: 'Chống Thấm 36',
+        buyer: 'Chống Thấm 36',
+        ...purchasePayload,
+      } as PurchaseOrder;
+
+      if (onAddPurchase) {
+        onAddPurchase(createdPurchase);
+      }
     }
 
     if (status === 'Đã nhập hàng') {
@@ -311,6 +369,8 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
       }
     }
 
+    const wasEditing = !!editingPurchaseId;
+    setEditingPurchaseId(null);
     setNewPurchaseItems([]);
     setNewPurchaseCode('');
     setNewOrderCode('');
@@ -320,7 +380,9 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
     setPaidToSupplier(0);
     setShowAddPurchaseTab(false);
     alert(
-      status === 'Đã nhập hàng'
+      wasEditing
+        ? `Đã cập nhật phiếu nhập ${code} thành công!`
+        : status === 'Đã nhập hàng'
         ? `Đã hoàn thành phiếu nhập ${code}! Tồn kho hàng hóa và công nợ nhà cung cấp đã được tự động cập nhật.`
         : `Đã lưu tạm phiếu nhập ${code}!`
     );
@@ -346,7 +408,7 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
     }
 
     const finalCode = quickSuppCode.trim() || `NCC${Math.floor(100000 + Math.random() * 900000)}`;
-    const initialDebt = typeof quickSuppDebt === 'number' ? quickSuppDebt : (parseFloat(quickSuppDebt as string) || 0);
+    const initialDebt = (typeof quickSuppDebt === 'number' && !isNaN(quickSuppDebt)) ? quickSuppDebt : (parseFloat(quickSuppDebt as string) || 0);
 
     const newSupp: Omit<Supplier, 'id'> = {
       code: finalCode,
@@ -388,9 +450,9 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
     }
 
     const finalCode = quickProdCode.trim() || `SP${Math.floor(100000 + Math.random() * 900000)}`;
-    const costP = typeof quickProdCostPrice === 'number' ? quickProdCostPrice : (parseFloat(quickProdCostPrice) || 0);
-    const sellP = typeof quickProdPrice === 'number' ? quickProdPrice : (parseFloat(quickProdPrice) || costP);
-    const qty = Math.max(1, typeof quickProdQuantity === 'number' ? quickProdQuantity : (parseInt(quickProdQuantity) || 1));
+    const costP = (typeof quickProdCostPrice === 'number' && !isNaN(quickProdCostPrice)) ? quickProdCostPrice : (parseFloat(quickProdCostPrice) || 0);
+    const sellP = (typeof quickProdPrice === 'number' && !isNaN(quickProdPrice)) ? quickProdPrice : (parseFloat(quickProdPrice) || costP);
+    const qty = Math.max(1, (typeof quickProdQuantity === 'number' && !isNaN(quickProdQuantity)) ? quickProdQuantity : (parseInt(quickProdQuantity) || 1));
 
     const newProd: Product = {
       id: `prod-${Date.now()}`,
@@ -439,12 +501,7 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
         : newDiscount;
     const calculatedNetTotal = Math.max(0, calculatedTotalItems - actualDiscount);
 
-    const defaultProductsList = products && products.length > 0 ? products : [
-      { id: '1', code: 'SP2511189', name: 'Ramset Vitec 5006 (tuýp)', unit: 'tuýp', importPrice: 480000, stock: 12 },
-      { id: '2', code: 'SP2511058', name: 'Grout 510 - Silver - 25kg/bao', unit: 'bao', importPrice: 180000, stock: 45 },
-      { id: '3', code: 'SP2511002', name: 'Sika Latex TH (Can 5 lít)', unit: 'can', importPrice: 320000, stock: 20 },
-      { id: '4', code: 'SP2511015', name: 'Chống thấm Polyurethane Vitec 270', unit: 'thùng', importPrice: 1250000, stock: 8 },
-    ];
+    const defaultProductsList = products || [];
 
     const filteredProdOptions = defaultProductsList.filter((p) =>
       p.code.toLowerCase().includes(prodSearchKey.toLowerCase()) ||
@@ -464,7 +521,9 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <h2 className="text-base font-extrabold text-gray-900 whitespace-nowrap">Nhập hàng</h2>
+            <h2 className="text-base font-extrabold text-gray-900 whitespace-nowrap">
+              {editingPurchaseId ? `Chỉnh sửa phiếu nhập ${newPurchaseCode}` : 'Nhập hàng'}
+            </h2>
 
             {/* Product Search Input */}
             <div className="relative flex-1">
@@ -707,7 +766,7 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
                           </td>
                           <td className="p-2.5 text-right font-mono font-bold text-gray-900">
                             <div className="flex items-center justify-end space-x-2">
-                              <span>{rowTotal.toLocaleString('vi-VN')}</span>
+                              <span>{(rowTotal || 0).toLocaleString('vi-VN')}</span>
                               <button
                                 type="button"
                                 onClick={() => {
@@ -864,7 +923,7 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
                       Tổng tiền hàng <Info className="w-3.5 h-3.5 text-gray-400 ml-1" />
                     </span>
                     <span className="font-mono font-bold text-gray-900 text-sm">
-                      {calculatedTotalItems.toLocaleString('vi-VN')}
+                      {(calculatedTotalItems || 0).toLocaleString('vi-VN')}
                     </span>
                   </div>
 
@@ -873,7 +932,7 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
                       <span className="text-gray-600 font-medium">Giảm giá</span>
                       {discountType === 'percent' && newDiscount > 0 && (
                         <span className="text-[10px] text-gray-500 font-mono">
-                          ({actualDiscount.toLocaleString('vi-VN')}đ)
+                          ({(actualDiscount || 0).toLocaleString('vi-VN')}đ)
                         </span>
                       )}
                     </div>
@@ -921,7 +980,7 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
                   <div className="flex justify-between items-center pt-1 font-bold">
                     <span className="text-gray-900">Cần trả nhà cung cấp</span>
                     <span className="font-mono text-blue-600 text-sm">
-                      {calculatedNetTotal.toLocaleString('vi-VN')}
+                      {(calculatedNetTotal || 0).toLocaleString('vi-VN')}
                     </span>
                   </div>
 
@@ -957,8 +1016,8 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
 
                     <div className="flex justify-between items-center pt-1 text-xs font-bold">
                       <span className="text-gray-800">Tính vào công nợ</span>
-                      <span className={`font-mono text-sm ${(typeof paidToSupplier === 'number' ? paidToSupplier : (parseFloat(paidToSupplier as string) || 0)) - calculatedNetTotal < 0 ? 'text-gray-900' : 'text-emerald-600'}`}>
-                        {((typeof paidToSupplier === 'number' ? paidToSupplier : (parseFloat(paidToSupplier as string) || 0)) - calculatedNetTotal).toLocaleString('vi-VN')}
+                      <span className={`font-mono text-sm ${((typeof paidToSupplier === 'number' && !isNaN(paidToSupplier)) ? paidToSupplier : (parseFloat(paidToSupplier as string) || 0)) - calculatedNetTotal < 0 ? 'text-gray-900' : 'text-emerald-600'}`}>
+                        {((((typeof paidToSupplier === 'number' && !isNaN(paidToSupplier)) ? paidToSupplier : (parseFloat(paidToSupplier as string) || 0)) - (calculatedNetTotal || 0)) || 0).toLocaleString('vi-VN')}
                       </span>
                     </div>
                   </div>
@@ -1330,31 +1389,31 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
         <div className="flex items-center space-x-3 w-full sm:w-auto justify-between sm:justify-end">
           {/* View Switcher Tabs */}
           {onSelectView && (
-            <div className="flex items-center space-x-1 bg-gray-100 p-1 rounded-lg border border-gray-200 text-xs font-medium">
+            <div className="flex items-center space-x-1 bg-[#f0f2f8] p-1 rounded-xl border border-gray-200/80 text-xs sm:text-sm font-medium shadow-2xs">
               {(currentView === 'purchases' || currentView === 'purchase-returns') ? (
                 <>
                   <button
                     onClick={() => onSelectView('suppliers')}
-                    className="px-3 py-1.5 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-200 transition-colors"
+                    className="px-4 py-2 rounded-lg text-gray-700 hover:text-gray-900 hover:bg-gray-200/60 transition-all font-medium"
                   >
                     Nhà cung cấp
                   </button>
                   <button
                     onClick={() => onSelectView('purchases')}
-                    className={`px-3 py-1.5 rounded-md transition-colors ${
+                    className={`px-4 py-2 rounded-lg font-bold transition-all ${
                       currentView === 'purchases'
-                        ? 'bg-[#1e0b54] text-white font-bold shadow-xs'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
+                        ? 'bg-[#1e0b54] text-white shadow-2xs'
+                        : 'text-gray-700 hover:text-gray-900 hover:bg-gray-200/60 font-medium'
                     }`}
                   >
                     Nhập hàng
                   </button>
                   <button
                     onClick={() => onSelectView('purchase-returns')}
-                    className={`px-3 py-1.5 rounded-md transition-colors ${
+                    className={`px-4 py-2 rounded-lg font-bold transition-all ${
                       currentView === 'purchase-returns'
-                        ? 'bg-[#1e0b54] text-white font-bold shadow-xs'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
+                        ? 'bg-[#1e0b54] text-white shadow-2xs'
+                        : 'text-gray-700 hover:text-gray-900 hover:bg-gray-200/60 font-medium'
                     }`}
                   >
                     Trả hàng nhập
@@ -1364,20 +1423,20 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
                 <>
                   <button
                     onClick={() => onSelectView('orders')}
-                    className={`px-3 py-1.5 rounded-md transition-colors ${
+                    className={`px-4 py-2 rounded-lg font-bold transition-all ${
                       currentView === 'orders'
-                        ? 'bg-[#1e0b54] text-white font-bold shadow-xs'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
+                        ? 'bg-[#1e0b54] text-white shadow-2xs'
+                        : 'text-gray-700 hover:text-gray-900 hover:bg-gray-200/60 font-medium'
                     }`}
                   >
                     Hóa đơn bán
                   </button>
                   <button
                     onClick={() => onSelectView('returns')}
-                    className={`px-3 py-1.5 rounded-md transition-colors ${
+                    className={`px-4 py-2 rounded-lg font-bold transition-all ${
                       currentView === 'returns'
-                        ? 'bg-[#1e0b54] text-white font-bold shadow-xs'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
+                        ? 'bg-[#1e0b54] text-white shadow-2xs'
+                        : 'text-gray-700 hover:text-gray-900 hover:bg-gray-200/60 font-medium'
                     }`}
                   >
                     Khách trả hàng
@@ -1390,8 +1449,19 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
           {currentView === 'purchases' && (
             <button
               type="button"
-              onClick={() => setShowAddPurchaseTab(true)}
-              className="bg-[#1e0b54] hover:bg-[#15073c] text-white font-bold px-3.5 py-2 rounded-lg text-xs flex items-center shadow-md transition-colors shrink-0"
+              onClick={() => {
+                setEditingPurchaseId(null);
+                setNewPurchaseCode(`PN${String(Math.floor(100000 + Math.random() * 900000))}`);
+                setNewSupplier('Khang Hân (Hồng)');
+                setSelectedSupplierCode('');
+                setNewNote('');
+                setNewDiscount(0);
+                setDiscountType('amount');
+                setPaidToSupplier(0);
+                setNewPurchaseItems([]);
+                setShowAddPurchaseTab(true);
+              }}
+              className="bg-[#1e0b54] hover:bg-[#15073c] text-white font-bold px-3.5 py-2 rounded-lg text-xs flex items-center shadow-md transition-colors shrink-0 cursor-pointer"
             >
               <Plus className="w-4 h-4 mr-1.5 text-amber-400" />
               Thêm phiếu nhập
@@ -1460,7 +1530,7 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
                         <td className="p-3 font-bold text-gray-900">{p.supplierName}</td>
                         <td className="p-3 text-center font-bold">{p.itemsCount} mặt hàng</td>
                         <td className="p-3 text-right font-extrabold text-[#1e0b54] font-mono">
-                          {p.totalAmount.toLocaleString('vi-VN')}đ
+                          {(p.totalAmount || 0).toLocaleString('vi-VN')}đ
                         </td>
                         <td className="p-3 text-center">
                           <span className="bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full font-bold text-[10px] inline-flex items-center border border-emerald-200">
@@ -1713,9 +1783,10 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      alert(`Mở chi tiết phiếu ${p.code}`);
+                                      handleOpenEditPurchase(p);
                                     }}
-                                    className="flex items-center px-4 py-1.5 bg-[#0066ff] hover:bg-blue-700 text-white rounded text-xs font-bold shadow-xs transition-colors"
+                                    className="flex items-center px-4 py-1.5 bg-[#0066ff] hover:bg-blue-700 text-white rounded text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                                    title="Mở phiếu để chỉnh sửa thông tin"
                                   >
                                     <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
                                     Mở phiếu
@@ -1723,12 +1794,13 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      alert(`Đã lưu thông tin phiếu nhập ${p.code}`);
+                                      handleOpenEditPurchase(p);
                                     }}
-                                    className="flex items-center px-3 py-1.5 border border-gray-300 rounded text-xs font-medium text-gray-700 hover:bg-gray-100 transition-colors"
+                                    className="flex items-center px-3 py-1.5 border border-gray-300 rounded text-xs font-medium text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
+                                    title="Chỉnh sửa thông tin phiếu nhập"
                                   >
-                                    <Save className="w-3.5 h-3.5 mr-1 text-gray-500" />
-                                    Lưu
+                                    <Pencil className="w-3.5 h-3.5 mr-1 text-gray-500" />
+                                    Chỉnh sửa
                                   </button>
                                   <button
                                     onClick={(e) => {

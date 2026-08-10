@@ -34,13 +34,14 @@ export const TopChartsSection: React.FC<TopChartsSectionProps> = ({ orders, prod
 
   // Compute Top Products dynamically from DB
   const topProductsRes = getTopProductsData(orders, products, timeFilterProducts, productFilter);
+  const cleanProdValues = (topProductsRes?.values || []).map((v) => (isNaN(v) || v == null ? 0 : v));
 
   const productsChartData = {
-    labels: topProductsRes.labels,
+    labels: topProductsRes?.labels || [],
     datasets: [
       {
         label: productFilter === 'Theo số lượng' ? 'Số lượng' : 'Doanh thu (tr)',
-        data: topProductsRes.values,
+        data: cleanProdValues,
         backgroundColor: '#1e0b54',
         borderRadius: 3,
         barThickness: 12,
@@ -48,7 +49,8 @@ export const TopChartsSection: React.FC<TopChartsSectionProps> = ({ orders, prod
     ],
   };
 
-  const maxProdVal = Math.max(...topProductsRes.values, 5);
+  const rawMaxProd = Math.max(...cleanProdValues, 5);
+  const maxProdVal = isNaN(rawMaxProd) || !isFinite(rawMaxProd) ? 5 : rawMaxProd;
   const suggestedMaxProd = Math.ceil(maxProdVal * 1.2);
 
   const productsChartOptions = {
@@ -97,13 +99,14 @@ export const TopChartsSection: React.FC<TopChartsSectionProps> = ({ orders, prod
 
   // Compute Top Customers dynamically from DB
   const topCustomersRes = getTopCustomersData(orders, timeFilterCustomers);
+  const cleanCustValues = (topCustomersRes?.values || []).map((v) => (isNaN(v) || v == null ? 0 : v));
 
   const customersChartData = {
-    labels: topCustomersRes.labels,
+    labels: topCustomersRes?.labels || [],
     datasets: [
       {
         label: 'Giá trị (tr)',
-        data: topCustomersRes.values,
+        data: cleanCustValues,
         backgroundColor: '#1e0b54',
         borderRadius: 3,
         barThickness: 12,
@@ -111,7 +114,8 @@ export const TopChartsSection: React.FC<TopChartsSectionProps> = ({ orders, prod
     ],
   };
 
-  const maxCustVal = Math.max(...topCustomersRes.values, 5);
+  const rawMaxCust = Math.max(...cleanCustValues, 5);
+  const maxCustVal = isNaN(rawMaxCust) || !isFinite(rawMaxCust) ? 5 : rawMaxCust;
   const suggestedMaxCust = Math.ceil(maxCustVal * 1.2);
 
   const customersChartOptions = {

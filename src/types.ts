@@ -43,6 +43,34 @@ export interface Product {
   updatedAt?: string;
 }
 
+export interface StockCheckItem {
+  productId?: string;
+  productCode: string;
+  productName: string;
+  systemQty: number;      // SL sổ sách
+  actualQty: number;      // SL thực tế
+  diffQty: number;        // Chênh lệch
+  costPrice: number;      // Giá vốn
+}
+
+export interface StockCheck {
+  id: string;
+  code: string;            // Mã kiểm kho (KK000656)
+  time: string;            // Thời gian (04/08/2026 09:52)
+  balancedDate: string;    // Ngày cân bằng (04/08/2026 09:52)
+  actualQty: number;       // SL thực tế (10)
+  totalActualValue: number;// Tổng thực tế (650,000)
+  totalDiff: number;       // Tổng chênh lệch (7)
+  increaseDiffQty: number; // SL lệch tăng (7)
+  decreaseDiffQty: number; // SL lệch giảm (0)
+  status?: 'Đã cân bằng' | 'Phiếu tạm' | 'Đã hủy';
+  note?: string;
+  items?: StockCheckItem[];
+  starred?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface CartItem {
   product: Product;
   quantity: number;
@@ -146,16 +174,30 @@ export interface PurchaseOrder {
   updatedAt?: string;
 }
 
+export type ActivityType = 
+  | 'sale' 
+  | 'import' 
+  | 'return' 
+  | 'customer_debt' 
+  | 'supplier_debt' 
+  | 'inventory';
+
 export interface ActivityLog {
   id: string;
   time: string;
-  type: 'sale' | 'import' | 'return';
+  type: ActivityType;
   storeName: string;
   actionText: string;
-  amount: number;
-  formattedAmount: string;
+  amount?: number;
+  formattedAmount?: string;
   orderCode?: string;
   orderId?: string;
+  entityCode?: string;
+  entityType?: 'order' | 'purchase' | 'customer' | 'supplier' | 'product';
+  inventoryImpact?: string;
+  customerDebtImpact?: string;
+  supplierDebtImpact?: string;
+  details?: string;
 }
 
 export interface DayRevenue {

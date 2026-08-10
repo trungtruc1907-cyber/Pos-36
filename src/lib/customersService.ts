@@ -18,33 +18,14 @@ const CUSTOMERS_COLLECTION = 'customers';
 export async function initializeCustomersIfEmpty(): Promise<Customer[]> {
   try {
     const querySnapshot = await getDocs(collection(db, CUSTOMERS_COLLECTION));
-    if (querySnapshot.empty) {
-      console.log('Seeding initial customers to Firestore...');
-      const batch = writeBatch(db);
-      const seeded: Customer[] = [];
-
-      for (const cust of INITIAL_CUSTOMERS) {
-        const docRef = doc(collection(db, CUSTOMERS_COLLECTION));
-        const newCustomer: Customer = {
-          ...cust,
-          id: docRef.id,
-        };
-        batch.set(docRef, newCustomer);
-        seeded.push(newCustomer);
-      }
-
-      await batch.commit();
-      return seeded;
-    } else {
-      const customers: Customer[] = [];
-      querySnapshot.forEach((doc) => {
-        customers.push({ ...doc.data(), id: doc.id } as Customer);
-      });
-      return customers;
-    }
+    const customers: Customer[] = [];
+    querySnapshot.forEach((doc) => {
+      customers.push({ ...doc.data(), id: doc.id } as Customer);
+    });
+    return customers;
   } catch (error) {
     console.error('Error initializing customers in Firestore:', error);
-    return INITIAL_CUSTOMERS;
+    return [];
   }
 }
 
@@ -58,12 +39,19 @@ export function subscribeCustomers(
     colRef,
     async (snapshot) => {
       if (snapshot.empty) {
-        const seeded = await initializeCustomersIfEmpty();
-        onUpdate(seeded);
+        onUpdate([]);
       } else {
         const list: Customer[] = [];
         snapshot.forEach((docSnap) => {
-          list.push({ ...docSnap.data(), id: docSnap.id } as Customer);
+          const data = docSnap.data();
+          list.push({
+            ...data,
+            id: docSnap.id,
+            totalSpent: isNaN(Number(data.totalSpent)) ? 0 : Number(data.totalSpent || 0),
+            orderCount: isNaN(Number(data.orderCount)) ? 0 : Number(data.orderCount || 0),
+            debt: isNaN(Number(data.debt)) ? 0 : Number(data.debt || 0),
+            points: isNaN(Number(data.points)) ? 0 : Number(data.points || 0),
+          } as Customer);
         });
         list.sort((a, b) => {
           const timeA = parseDateToMillis((a as any).createdAt || (a as any).updatedAt);

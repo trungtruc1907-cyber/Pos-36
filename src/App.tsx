@@ -1,10 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { ViewMode, Product, Customer, Supplier, Order, ActivityLog, CartItem, PaymentMethod, PurchaseOrder } from './types';
-import { 
-  INITIAL_CUSTOMERS, 
-  INITIAL_ACTIVITY_LOGS,
-  INITIAL_PURCHASES 
-} from './data/mockData';
 import {
   subscribeProducts,
   addProduct,
@@ -29,8 +24,15 @@ import {
 } from './lib/customersService';
 import {
   subscribePurchases,
-  addPurchase
+  addPurchase,
+  updatePurchase
 } from './lib/purchasesService';
+import {
+  subscribeStockChecks,
+  addStockCheck,
+  INITIAL_STOCK_CHECKS
+} from './lib/stockCheckService';
+import { StockCheck } from './types';
 import { getDashboardStats } from './utils/dashboardUtils';
 
 import { Header } from './components/Header';
@@ -49,13 +51,14 @@ export default function App() {
   // Application Persistent State
   const [products, setProducts] = useState<Product[]>([]);
   const [loadingProducts, setLoadingProducts] = useState<boolean>(true);
-  const [customers, setCustomers] = useState<Customer[]>(INITIAL_CUSTOMERS);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loadingSuppliers, setLoadingSuppliers] = useState<boolean>(true);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loadingOrders, setLoadingOrders] = useState<boolean>(true);
-  const [purchases, setPurchases] = useState<PurchaseOrder[]>(INITIAL_PURCHASES);
-  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>(INITIAL_ACTIVITY_LOGS);
+  const [purchases, setPurchases] = useState<PurchaseOrder[]>([]);
+  const [stockChecks, setStockChecks] = useState<StockCheck[]>([]);
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
 
   // Subscribe to Firebase Firestore for products real-time data
   useEffect(() => {
@@ -132,6 +135,24 @@ export default function App() {
     );
     return () => unsubscribe();
   }, []);
+
+  // Subscribe to Firebase Firestore for stock checks real-time data
+  useEffect(() => {
+    const unsubscribe = subscribeStockChecks(
+      (firebaseStockChecks) => {
+        setStockChecks(firebaseStockChecks);
+      },
+      (error) => {
+        console.error('Firebase stock checks error:', error);
+      }
+    );
+    return () => unsubscribe();
+  }, []);
+
+  const handleAddStockCheck = async (sc: Omit<StockCheck, 'id'>) => {
+    const newId = await addStockCheck(sc);
+    return newId;
+  };
 
   // Daily totals calculated dynamically from database orders
   const { todayRevenue, todayOrdersCount } = getDashboardStats(orders, products);
@@ -233,6 +254,20 @@ export default function App() {
     } catch (err) {
       console.error('Failed to add purchase order to Firestore:', err);
       setPurchases((prev) => [newPurchase, ...prev]);
+    }
+  };
+
+  const handleUpdatePurchase = async (id: string, updates: Partial<PurchaseOrder>) => {
+    try {
+      await updatePurchase(id, updates);
+      setPurchases((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, ...updates } : p))
+      );
+    } catch (err) {
+      console.error('Failed to update purchase order in Firestore:', err);
+      setPurchases((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, ...updates } : p))
+      );
     }
   };
 
@@ -432,7 +467,10 @@ export default function App() {
           {currentView === 'dashboard' && (
             <DashboardView
               orders={orders}
+              purchases={purchases}
               products={products}
+              customers={customers}
+              suppliers={suppliers}
               activityLogs={activityLogs}
               todayRevenue={todayRevenue}
               todayOrdersCount={todayOrdersCount}
@@ -446,8 +484,11 @@ export default function App() {
               products={products}
               orders={orders}
               purchases={purchases}
+              stockChecks={stockChecks}
               onAddProduct={handleAddNewProduct}
               onUpdateProduct={handleUpdateProduct}
+              onAddStockCheck={handleAddStockCheck}
+              currentView={currentView}
             />
           )}
 
@@ -462,6 +503,7 @@ export default function App() {
               onReprintOrder={handleReprintOrder}
               onUpdateOrder={handleUpdateOrder}
               onAddPurchase={handleAddNewPurchase}
+              onUpdatePurchase={handleUpdatePurchase}
               onAddProduct={handleAddNewProduct}
               onUpdateProduct={handleUpdateProduct}
               onAddSupplier={handleAddNewSupplier}

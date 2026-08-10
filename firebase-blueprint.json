@@ -110,6 +110,25 @@
         "discount": { "type": "number", "description": "Giảm giá" }
       },
       "required": ["code", "supplierName", "totalAmount"]
+    },
+    "stock_checks": {
+      "title": "Danh sách Kiểm kho",
+      "description": "Bảng quản lý danh sách phiếu kiểm kho",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "ID phiếu kiểm kho" },
+        "code": { "type": "string", "description": "Mã kiểm kho" },
+        "time": { "type": "string", "description": "Thời gian kiểm" },
+        "balancedDate": { "type": "string", "description": "Ngày cân bằng" },
+        "actualQty": { "type": "number", "description": "SL thực tế" },
+        "totalActualValue": { "type": "number", "description": "Tổng thực tế" },
+        "totalDiff": { "type": "number", "description": "Tổng chênh lệch" },
+        "increaseDiffQty": { "type": "number", "description": "SL lệch tăng" },
+        "decreaseDiffQty": { "type": "number", "description": "SL lệch giảm" },
+        "status": { "type": "string", "description": "Trạng thái" },
+        "note": { "type": "string", "description": "Ghi chú" }
+      },
+      "required": ["code", "time", "balancedDate"]
     }
   },
   "firestore": {
@@ -132,6 +151,10 @@
     "/purchases/{purchaseId}": {
       "schema": "purchases",
       "description": "Danh sách phiếu nhập hàng"
+    },
+    "/stock_checks/{stockCheckId}": {
+      "schema": "stock_checks",
+      "description": "Danh sách phiếu kiểm kho"
     }
   }
 }

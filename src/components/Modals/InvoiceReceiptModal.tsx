@@ -118,10 +118,10 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({
                   <td className="py-2 text-center text-gray-500">{item.product.unit}</td>
                   <td className="py-2 text-right font-bold">{item.quantity}</td>
                   <td className="py-2 text-right font-mono">
-                    {item.unitPrice.toLocaleString('vi-VN')}
+                    {(item.unitPrice || 0).toLocaleString('vi-VN')}
                   </td>
                   <td className="py-2 text-right font-bold font-mono">
-                    {(item.quantity * item.unitPrice).toLocaleString('vi-VN')}đ
+                    {((item.quantity || 0) * (item.unitPrice || 0)).toLocaleString('vi-VN')}đ
                   </td>
                 </tr>
               ))}
@@ -133,37 +133,37 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({
             {discount > 0 && (
               <div className="flex justify-between text-gray-600">
                 <span>Giảm giá:</span>
-                <span className="font-mono">-{discount.toLocaleString('vi-VN')}đ</span>
+                <span className="font-mono">-{(discount || 0).toLocaleString('vi-VN')}đ</span>
               </div>
             )}
             {surcharge > 0 && (
               <div className="flex justify-between text-gray-600">
                 <span>Thu khác:</span>
-                <span className="font-mono">+{surcharge.toLocaleString('vi-VN')}đ</span>
+                <span className="font-mono">+{(surcharge || 0).toLocaleString('vi-VN')}đ</span>
               </div>
             )}
             <div className="flex justify-between text-sm font-extrabold text-gray-900 pt-1 border-t">
               <span>Tổng cộng cần trả:</span>
               <span className="text-[#1e0b54] font-mono">
-                {totalAmount.toLocaleString('vi-VN')}đ
+                {(totalAmount || 0).toLocaleString('vi-VN')}đ
               </span>
             </div>
             <div className="flex justify-between text-gray-700">
               <span>Khách thanh toán ({getPaymentMethodLabel(paymentMethod)}):</span>
               <span className="font-mono font-bold">
-                {amountPaid.toLocaleString('vi-VN')}đ
+                {(amountPaid || 0).toLocaleString('vi-VN')}đ
               </span>
             </div>
             {changeReturn >= 0 ? (
               <div className="flex justify-between text-emerald-700 font-semibold">
                 <span>Tiền thừa trả khách:</span>
-                <span className="font-mono">{changeReturn.toLocaleString('vi-VN')}đ</span>
+                <span className="font-mono">{(changeReturn || 0).toLocaleString('vi-VN')}đ</span>
               </div>
             ) : (
               <div className="flex justify-between text-amber-700 font-semibold">
                 <span>Khách còn nợ:</span>
                 <span className="font-mono">
-                  {Math.abs(changeReturn).toLocaleString('vi-VN')}đ
+                  {Math.abs(changeReturn || 0).toLocaleString('vi-VN')}đ
                 </span>
               </div>
             )}

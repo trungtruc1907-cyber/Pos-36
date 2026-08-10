@@ -382,7 +382,7 @@ export const PosView: React.FC<PosViewProps> = ({
                       </div>
                       <div className="text-right shrink-0 ml-2">
                         <div className="text-xs font-bold text-[#1e0b54]">
-                          {p.price.toLocaleString('vi-VN')}đ
+                          {(p.price || 0).toLocaleString('vi-VN')}đ
                         </div>
                         <span className="inline-block bg-indigo-100 text-[#1e0b54] text-[9px] px-1.5 py-0.5 rounded font-medium">
                           {p.unit}
@@ -498,7 +498,7 @@ export const PosView: React.FC<PosViewProps> = ({
           }`}
         >
           <CreditCard className="w-4 h-4" />
-          Thanh toán ({payableAmount.toLocaleString('vi-VN')}đ)
+          Thanh toán ({(payableAmount || 0).toLocaleString('vi-VN')}đ)
         </button>
       </div>
 
@@ -594,7 +594,7 @@ export const PosView: React.FC<PosViewProps> = ({
 
                         {/* Total Amount */}
                         <div className="text-right font-bold text-[#1e0b54] font-mono text-xs">
-                          {itemTotal.toLocaleString('vi-VN')}đ
+                          {(itemTotal || 0).toLocaleString('vi-VN')}đ
                         </div>
 
                         {/* Delete Item Button */}
@@ -718,7 +718,7 @@ export const PosView: React.FC<PosViewProps> = ({
                   Tổng tiền hàng ({activeTab.cart.reduce((sum, i) => sum + i.quantity, 0)} sản phẩm)
                 </span>
                 <span className="font-bold font-mono text-sm text-gray-900">
-                  {rawTotal.toLocaleString('vi-VN')}đ
+                  {(rawTotal || 0).toLocaleString('vi-VN')}đ
                 </span>
               </div>
 
@@ -728,7 +728,7 @@ export const PosView: React.FC<PosViewProps> = ({
                   <span className="font-medium text-gray-600">Giảm giá</span>
                   {activeTab.discountType === 'percent' && activeTab.discount > 0 && (
                     <span className="text-[10px] text-gray-500 font-mono">
-                      ({actualDiscount.toLocaleString('vi-VN')}đ)
+                      ({(actualDiscount || 0).toLocaleString('vi-VN')}đ)
                     </span>
                   )}
                 </div>
@@ -828,7 +828,7 @@ export const PosView: React.FC<PosViewProps> = ({
               <div className="flex justify-between items-center pt-1">
                 <span className="text-sm font-extrabold text-gray-900">Khách cần trả</span>
                 <span className="text-xl font-black text-[#1e0b54] font-mono">
-                  {payableAmount.toLocaleString('vi-VN')}đ
+                  {(payableAmount || 0).toLocaleString('vi-VN')}đ
                 </span>
               </div>
 
@@ -856,14 +856,14 @@ export const PosView: React.FC<PosViewProps> = ({
                 <div className="flex justify-between items-center text-xs text-emerald-600 font-semibold bg-emerald-50 p-2 rounded border border-emerald-100">
                   <span>Tiền thừa trả khách:</span>
                   <span className="font-bold font-mono text-sm">
-                    {changeAmount.toLocaleString('vi-VN')}đ
+                    {(changeAmount || 0).toLocaleString('vi-VN')}đ
                   </span>
                 </div>
               ) : (
                 <div className="flex justify-between items-center text-xs text-amber-600 font-semibold bg-amber-50 p-2 rounded border border-amber-100">
                   <span>Khách còn thiếu:</span>
                   <span className="font-bold font-mono text-sm">
-                    {Math.abs(changeAmount).toLocaleString('vi-VN')}đ
+                    {Math.abs(changeAmount || 0).toLocaleString('vi-VN')}đ
                   </span>
                 </div>
               )}
@@ -944,7 +944,7 @@ export const PosView: React.FC<PosViewProps> = ({
                       }
                       className="px-2.5 py-1 bg-gray-100 hover:bg-indigo-100 hover:text-[#1e0b54] border border-gray-200 rounded font-mono text-xs text-gray-800 transition-colors"
                     >
-                      {amt.toLocaleString('vi-VN')}đ
+                      {(amt || 0).toLocaleString('vi-VN')}đ
                     </button>
                   ))}
                 </div>
@@ -1172,7 +1172,7 @@ export const PosView: React.FC<PosViewProps> = ({
                             </div>
                             <div className="text-right ml-2 shrink-0">
                               <div className="font-extrabold text-sm text-[#1e0b54]">
-                                {p.price.toLocaleString('vi-VN')}đ
+                                {(p.price || 0).toLocaleString('vi-VN')}đ
                               </div>
                               <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded">
                                 + Thêm

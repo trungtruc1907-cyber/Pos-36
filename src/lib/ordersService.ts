@@ -351,26 +351,8 @@ export const INITIAL_FIRESTORE_ORDERS: Omit<Order, 'id'>[] = [
  * Seed initial orders if collection is empty
  */
 export async function seedOrdersIfEmpty(): Promise<void> {
-  try {
-    const querySnapshot = await getDocs(collection(db, ORDERS_COLLECTION));
-    if (querySnapshot.empty) {
-      console.log('Orders collection is empty. Seeding initial invoice records...');
-      const batch = writeBatch(db);
-      for (const ord of INITIAL_FIRESTORE_ORDERS) {
-        const id = ord.orderCode.replace('.', '_');
-        const docRef = doc(db, ORDERS_COLLECTION, id);
-        batch.set(docRef, {
-          ...ord,
-          id,
-          createdAt: new Date().toISOString()
-        });
-      }
-      await batch.commit();
-      console.log('Seeded initial orders successfully!');
-    }
-  } catch (error) {
-    console.error('Error seeding orders:', error);
-  }
+  // Demo auto-seeding disabled
+  return;
 }
 
 /**
@@ -378,10 +360,6 @@ export async function seedOrdersIfEmpty(): Promise<void> {
  */
 export function subscribeOrders(onData: (orders: Order[]) => void, onError?: (err: Error) => void) {
   const colRef = collection(db, ORDERS_COLLECTION);
-
-  seedOrdersIfEmpty().then(() => {
-    // seeded
-  }).catch((err) => console.error(err));
 
   return onSnapshot(colRef, (snapshot) => {
     if (snapshot.empty) {
@@ -391,10 +369,16 @@ export function subscribeOrders(onData: (orders: Order[]) => void, onError?: (er
 
     const ordersList: Order[] = snapshot.docs.map((docSnap) => {
       const data = docSnap.data();
-      const subtotal = Number(data.subtotal ?? data.totalAmount ?? 0);
-      const discount = Number(data.discount ?? 0);
-      const totalAmount = Number(data.totalAmount ?? (subtotal - discount));
-      const amountPaid = Number(data.amountPaid ?? totalAmount);
+      const subtotalRaw = Number(data.subtotal ?? data.totalAmount ?? 0);
+      const subtotal = isNaN(subtotalRaw) ? 0 : subtotalRaw;
+      const discountRaw = Number(data.discount ?? 0);
+      const discount = isNaN(discountRaw) ? 0 : discountRaw;
+      const totalAmountRaw = Number(data.totalAmount ?? (subtotal - discount));
+      const totalAmount = isNaN(totalAmountRaw) ? 0 : totalAmountRaw;
+      const amountPaidRaw = Number(data.amountPaid ?? totalAmount);
+      const amountPaid = isNaN(amountPaidRaw) ? 0 : amountPaidRaw;
+      const itemsCountRaw = Number(data.itemsCount || (data.items ? data.items.length : 1));
+      const itemsCount = isNaN(itemsCountRaw) ? 1 : itemsCountRaw;
 
       return {
         id: docSnap.id,
@@ -407,7 +391,7 @@ export function subscribeOrders(onData: (orders: Order[]) => void, onError?: (er
         discount: discount,
         totalAmount: totalAmount,
         amountPaid: amountPaid,
-        itemsCount: Number(data.itemsCount || (data.items ? data.items.length : 1)),
+        itemsCount: itemsCount,
         paymentMethod: data.paymentMethod || 'cash',
         status: data.status || 'Đã thanh toán',
         items: data.items || [],

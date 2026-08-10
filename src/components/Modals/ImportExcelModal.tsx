@@ -429,10 +429,10 @@ export const ImportExcelModal: React.FC<ImportExcelModalProps> = ({
                           <td className="p-2 border-r border-gray-200 font-medium">{item.name}</td>
                           <td className="p-2 border-r border-gray-200 text-gray-600">{item.nhomHang}</td>
                           <td className="p-2 border-r border-gray-200 text-right font-semibold text-emerald-700">
-                            {item.price.toLocaleString('vi-VN')} đ
+                            {(item.price || 0).toLocaleString('vi-VN')} đ
                           </td>
                           <td className="p-2 border-r border-gray-200 text-right text-gray-600">
-                            {item.costPrice.toLocaleString('vi-VN')} đ
+                            {(item.costPrice || 0).toLocaleString('vi-VN')} đ
                           </td>
                           <td className="p-2 border-r border-gray-200 text-right font-bold text-gray-900">
                             {item.stock}

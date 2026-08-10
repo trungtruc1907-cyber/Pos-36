@@ -362,28 +362,28 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
 
         <div className="flex items-center space-x-3 w-full sm:w-auto justify-between sm:justify-end">
           {onSelectView && (
-            <div className="flex items-center space-x-1 bg-gray-100 p-1 rounded-lg border border-gray-200 text-xs font-medium">
+            <div className="flex items-center space-x-1 bg-[#f0f2f8] p-1 rounded-xl border border-gray-200/80 text-xs sm:text-sm font-medium shadow-2xs">
               {currentView === 'suppliers' ? (
                 <>
                   <button
                     onClick={() => onSelectView('suppliers')}
-                    className={`px-3 py-1.5 rounded-md transition-colors ${
+                    className={`px-4 py-2 rounded-lg font-bold transition-all ${
                       currentView === 'suppliers'
-                        ? 'bg-[#1e0b54] text-white font-bold shadow-xs'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
+                        ? 'bg-[#1e0b54] text-white shadow-2xs'
+                        : 'text-gray-700 hover:text-gray-900 hover:bg-gray-200/60 font-medium'
                     }`}
                   >
                     Nhà cung cấp
                   </button>
                   <button
                     onClick={() => onSelectView('purchases')}
-                    className="px-3 py-1.5 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-200 transition-colors"
+                    className="px-4 py-2 rounded-lg text-gray-700 hover:text-gray-900 hover:bg-gray-200/60 transition-all font-medium"
                   >
                     Nhập hàng
                   </button>
                   <button
                     onClick={() => onSelectView('purchase-returns')}
-                    className="px-3 py-1.5 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-200 transition-colors"
+                    className="px-4 py-2 rounded-lg text-gray-700 hover:text-gray-900 hover:bg-gray-200/60 transition-all font-medium"
                   >
                     Trả hàng nhập
                   </button>
@@ -392,20 +392,20 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
                 <>
                   <button
                     onClick={() => onSelectView('customers')}
-                    className={`px-3 py-1.5 rounded-md transition-colors ${
+                    className={`px-4 py-2 rounded-lg font-bold transition-all ${
                       currentView === 'customers'
-                        ? 'bg-[#1e0b54] text-white font-bold shadow-xs'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
+                        ? 'bg-[#1e0b54] text-white shadow-2xs'
+                        : 'text-gray-700 hover:text-gray-900 hover:bg-gray-200/60 font-medium'
                     }`}
                   >
                     Khách hàng
                   </button>
                   <button
                     onClick={() => onSelectView('promotions')}
-                    className={`px-3 py-1.5 rounded-md transition-colors ${
+                    className={`px-4 py-2 rounded-lg font-bold transition-all ${
                       currentView === 'promotions'
-                        ? 'bg-[#1e0b54] text-white font-bold shadow-xs'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
+                        ? 'bg-[#1e0b54] text-white shadow-2xs'
+                        : 'text-gray-700 hover:text-gray-900 hover:bg-gray-200/60 font-medium'
                     }`}
                   >
                     Khuyến mãi
@@ -417,9 +417,9 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
 
           <button
             onClick={() => setShowAdd(true)}
-            className="bg-[#1e0b54] hover:bg-[#15073c] text-white font-bold px-3.5 py-2 rounded-md text-xs flex items-center shadow-md transition-colors"
+            className="bg-[#1e0b54] hover:bg-[#15073c] text-white font-bold px-4 py-2 rounded-lg text-xs sm:text-sm flex items-center shadow-xs transition-colors cursor-pointer"
           >
-            <UserPlus className="w-4 h-4 mr-1.5 text-amber-400" />
+            <UserPlus className="w-4 h-4 mr-1.5 text-amber-400 font-bold" />
             {headerInfo.btnText}
           </button>
         </div>
@@ -465,10 +465,10 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
                 <td className="p-2.5 border-r border-gray-200"></td>
                 <td className="p-2.5 border-r border-gray-200"></td>
                 <td className="p-2.5 border-r border-gray-200 text-right font-mono font-extrabold text-gray-900">
-                  {totalSupplierDebt.toLocaleString('en-US')}
+                  {(totalSupplierDebt || 0).toLocaleString('en-US')}
                 </td>
                 <td className="p-2.5 text-right font-mono font-extrabold text-gray-900">
-                  {totalSupplierPurchased.toLocaleString('en-US')}
+                  {(totalSupplierPurchased || 0).toLocaleString('en-US')}
                 </td>
               </tr>
             </thead>
@@ -689,7 +689,7 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
                                         <td className="p-2.5 font-mono text-gray-600">27/06/2026 10:30</td>
                                         <td className="p-2.5 text-gray-800 font-medium">Chống Thấm 36</td>
                                         <td className="p-2.5 text-right font-mono font-bold text-gray-900">
-                                          {s.totalPurchased.toLocaleString('vi-VN')}đ
+                                          {(s.totalPurchased || 0).toLocaleString('vi-VN')}đ
                                         </td>
                                         <td className="p-2.5 text-center">
                                           <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-800">
@@ -730,10 +730,10 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
                                         <td className="p-2.5 font-mono text-gray-600">27/06/2026 10:30</td>
                                         <td className="p-2.5 text-gray-800 font-medium">Phiếu nhập hàng chưa thanh toán đủ</td>
                                         <td className="p-2.5 text-right font-mono font-bold text-gray-900">
-                                          {s.totalPurchased.toLocaleString('vi-VN')}đ
+                                          {(s.totalPurchased || 0).toLocaleString('vi-VN')}đ
                                         </td>
                                         <td className="p-2.5 text-right font-mono font-extrabold text-red-600">
-                                          {s.currentDebt.toLocaleString('vi-VN')}đ
+                                          {(s.currentDebt || 0).toLocaleString('vi-VN')}đ
                                         </td>
                                       </tr>
                                     ) : (
@@ -787,10 +787,10 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
                   {totalCustomerOrders}
                 </td>
                 <td className="p-2.5 border-r border-gray-200 text-right font-mono font-extrabold text-gray-900">
-                  {totalCustomerDebt.toLocaleString('vi-VN')}
+                  {(totalCustomerDebt || 0).toLocaleString('vi-VN')}
                 </td>
                 <td className="p-2.5 text-right font-mono font-extrabold text-gray-900">
-                  {totalCustomerSpent.toLocaleString('vi-VN')}
+                  {(totalCustomerSpent || 0).toLocaleString('vi-VN')}
                 </td>
               </tr>
             </thead>
@@ -836,10 +836,10 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
                           {c.orderCount}
                         </td>
                         <td className="p-2.5 border-r border-gray-200 text-right font-mono font-medium text-gray-900">
-                          {c.debt ? c.debt.toLocaleString('vi-VN') : '0'}
+                          {c.debt ? (c.debt || 0).toLocaleString('vi-VN') : '0'}
                         </td>
                         <td className="p-2.5 text-right font-mono font-medium text-gray-900">
-                          {c.totalSpent ? c.totalSpent.toLocaleString('vi-VN') : '0'}
+                          {c.totalSpent ? (c.totalSpent || 0).toLocaleString('vi-VN') : '0'}
                         </td>
                       </tr>
 
@@ -1049,7 +1049,7 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
                                 <div className="p-4 bg-white">
                                   <div className="mb-2.5 flex justify-between items-center text-xs text-gray-600 bg-gray-50 p-2 rounded border border-gray-100">
                                     <span>Tổng số hóa đơn mua: <strong className="text-gray-900 font-bold font-mono">{customerInvoices.length}</strong></span>
-                                    <span>Tổng tiền tích lũy: <strong className="text-blue-600 font-bold font-mono">{c.totalSpent ? c.totalSpent.toLocaleString('vi-VN') : 0}đ</strong></span>
+                                    <span>Tổng tiền tích lũy: <strong className="text-blue-600 font-bold font-mono">{c.totalSpent ? (c.totalSpent || 0).toLocaleString('vi-VN') : 0}đ</strong></span>
                                   </div>
                                   <div className="max-h-80 overflow-y-auto border border-gray-200 rounded">
                                     <table className="w-full text-left text-xs">
@@ -1075,7 +1075,7 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
                                               <td className="p-2.5 font-mono text-gray-600">{ord.date}</td>
                                               <td className="p-2.5 text-gray-800 font-medium">Chống Thấm 36</td>
                                               <td className="p-2.5 text-right font-mono font-bold text-gray-900">
-                                                {ord.totalAmount.toLocaleString('vi-VN')}đ
+                                                {(ord.totalAmount || 0).toLocaleString('vi-VN')}đ
                                               </td>
                                               <td className="p-2.5 text-center">
                                                 <span
@@ -1137,10 +1137,10 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
                                         <td className="p-2.5 font-mono text-gray-600">03/08/2026 10:20</td>
                                         <td className="p-2.5 text-gray-800 font-medium">Hóa đơn bán hàng ghi nợ</td>
                                         <td className="p-2.5 text-right font-mono font-bold text-gray-900">
-                                          {c.totalSpent.toLocaleString('vi-VN')}đ
+                                          {(c.totalSpent || 0).toLocaleString('vi-VN')}đ
                                         </td>
                                         <td className="p-2.5 text-right font-mono font-extrabold text-red-600">
-                                          {c.debt.toLocaleString('vi-VN')}đ
+                                          {(c.debt || 0).toLocaleString('vi-VN')}đ
                                         </td>
                                       </tr>
                                     ) : (
@@ -1645,9 +1645,9 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
                             <td className="p-2 font-medium text-gray-800">{item.product.name}</td>
                             <td className="p-2 text-center text-gray-500">{item.product.unit || 'Cái'}</td>
                             <td className="p-2 text-center font-bold font-mono">{item.quantity}</td>
-                            <td className="p-2 text-right font-mono">{item.unitPrice.toLocaleString('vi-VN')}đ</td>
+                            <td className="p-2 text-right font-mono">{(item.unitPrice || 0).toLocaleString('vi-VN')}đ</td>
                             <td className="p-2 text-right font-bold font-mono text-gray-900">
-                              {(item.quantity * item.unitPrice).toLocaleString('vi-VN')}đ
+                              {((item.quantity || 0) * (item.unitPrice || 0)).toLocaleString('vi-VN')}đ
                             </td>
                           </tr>
                         ))
@@ -1665,18 +1665,18 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
                 <div className="flex justify-between text-gray-600">
                   <span>Tổng tiền hàng:</span>
                   <span className="font-mono font-medium">
-                    {(selectedOrderForDetail.subtotal || selectedOrderForDetail.totalAmount).toLocaleString('vi-VN')}đ
+                    {(selectedOrderForDetail.subtotal || selectedOrderForDetail.totalAmount || 0).toLocaleString('vi-VN')}đ
                   </span>
                 </div>
                 {selectedOrderForDetail.discount ? (
                   <div className="flex justify-between text-gray-600">
                     <span>Giảm giá:</span>
-                    <span className="font-mono text-rose-600">-{selectedOrderForDetail.discount.toLocaleString('vi-VN')}đ</span>
+                    <span className="font-mono text-rose-600">-{(selectedOrderForDetail.discount || 0).toLocaleString('vi-VN')}đ</span>
                   </div>
                 ) : null}
                 <div className="flex justify-between text-sm font-bold text-gray-900 pt-1 border-t border-gray-200">
                   <span>Tổng cộng thanh toán:</span>
-                  <span className="font-mono text-blue-600">{selectedOrderForDetail.totalAmount.toLocaleString('vi-VN')}đ</span>
+                  <span className="font-mono text-blue-600">{(selectedOrderForDetail.totalAmount || 0).toLocaleString('vi-VN')}đ</span>
                 </div>
                 <div className="flex justify-between text-gray-500 text-[11px]">
                   <span>Hình thức thanh toán:</span>

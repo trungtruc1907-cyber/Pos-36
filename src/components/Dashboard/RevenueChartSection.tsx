@@ -31,19 +31,21 @@ export const RevenueChartSection: React.FC<RevenueChartSectionProps> = ({ orders
 
   const chartRes = getRevenueChartData(orders, timePeriod, activeTab);
 
-  const bgColors = chartRes.data.map((val) => {
+  const cleanData = (chartRes?.data || []).map((v) => (isNaN(v) || v == null ? 0 : v));
+
+  const bgColors = cleanData.map((val) => {
     if (val === 0) return '#e2e8f0';
-    const maxValInArr = Math.max(...chartRes.data);
+    const maxValInArr = Math.max(...cleanData, 0);
     if (val === maxValInArr && maxValInArr > 0) return '#ffb830';
     return '#1e0b54';
   });
 
   const chartData = {
-    labels: chartRes.labels,
+    labels: chartRes?.labels || [],
     datasets: [
       {
         label: 'Doanh thu thuần (tr)',
-        data: chartRes.data,
+        data: cleanData,
         backgroundColor: bgColors,
         borderRadius: 4,
         barThickness: activeTab === 'day' ? 24 : 28,
@@ -51,7 +53,8 @@ export const RevenueChartSection: React.FC<RevenueChartSectionProps> = ({ orders
     ],
   };
 
-  const maxVal = Math.max(...chartRes.data, 10);
+  const rawMax = Math.max(...cleanData, 10);
+  const maxVal = isNaN(rawMax) || !isFinite(rawMax) ? 10 : rawMax;
   const suggestedMax = Math.ceil(maxVal * 1.25);
 
   const options = {
@@ -102,7 +105,7 @@ export const RevenueChartSection: React.FC<RevenueChartSectionProps> = ({ orders
         <div className="flex items-baseline space-x-3">
           <h2 className="text-base font-bold text-gray-800">Doanh thu thuần</h2>
           <span className="text-xl font-extrabold text-[#1e0b54]">
-            {chartRes.totalNet.toLocaleString('vi-VN')}đ
+            {(chartRes?.totalNet || 0).toLocaleString('vi-VN')}đ
           </span>
         </div>
 

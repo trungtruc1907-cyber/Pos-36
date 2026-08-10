@@ -18,25 +18,8 @@ const PRODUCTS_COLLECTION = 'products';
  * Seed initial product list into Firestore if collection is empty
  */
 export async function seedProductsIfEmpty(): Promise<void> {
-  try {
-    const querySnapshot = await getDocs(collection(db, PRODUCTS_COLLECTION));
-    if (querySnapshot.empty) {
-      console.log('Firestore products collection is empty. Seeding initial products...');
-      const batch = writeBatch(db);
-      for (const prod of INITIAL_PRODUCTS) {
-        const docRef = doc(db, PRODUCTS_COLLECTION, prod.id);
-        batch.set(docRef, {
-          ...prod,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        });
-      }
-      await batch.commit();
-      console.log('Seeded initial products successfully into Firestore!');
-    }
-  } catch (error) {
-    console.error('Error seeding products to Firestore:', error);
-  }
+  // Demo auto-seeding disabled to keep database empty
+  return;
 }
 
 /**
@@ -44,11 +27,6 @@ export async function seedProductsIfEmpty(): Promise<void> {
  */
 export function subscribeProducts(onData: (products: Product[]) => void, onError?: (err: Error) => void) {
   const colRef = collection(db, PRODUCTS_COLLECTION);
-  
-  // First check if seeding is needed
-  seedProductsIfEmpty().then(() => {
-    // Continue listening
-  }).catch(err => console.error(err));
 
   return onSnapshot(colRef, (snapshot) => {
     if (snapshot.empty) {
@@ -65,12 +43,12 @@ export function subscribeProducts(onData: (products: Product[]) => void, onError
         maVach: data.maVach || '',
         name: data.name || '',
         brand: data.brand || '',
-        price: Number(data.price || 0),
-        costPrice: Number(data.costPrice || 0),
-        stock: Number(data.stock || 0),
+        price: isNaN(Number(data.price)) ? 0 : Number(data.price || 0),
+        costPrice: isNaN(Number(data.costPrice)) ? 0 : Number(data.costPrice || 0),
+        stock: isNaN(Number(data.stock)) ? 0 : Number(data.stock || 0),
         unit: data.unit || 'Cái',
         maDvtCoBan: data.maDvtCoBan || '',
-        quyDoi: Number(data.quyDoi || 1),
+        quyDoi: isNaN(Number(data.quyDoi)) ? 1 : Number(data.quyDoi || 1),
         imageUrl: data.imageUrl || '',
         tichDiem: data.tichDiem ?? 1,
         dangKinhDoanh: data.dangKinhDoanh ?? 1,
@@ -202,15 +180,4 @@ export async function resetAndSeedDatabase(): Promise<void> {
     deleteBatch.delete(d.ref);
   });
   await deleteBatch.commit();
-
-  const seedBatch = writeBatch(db);
-  for (const prod of INITIAL_PRODUCTS) {
-    const docRef = doc(db, PRODUCTS_COLLECTION, prod.id);
-    seedBatch.set(docRef, {
-      ...prod,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    });
-  }
-  await seedBatch.commit();
 }

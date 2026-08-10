@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Product, Order, PurchaseOrder } from '../../types';
+import React, { useState, useEffect } from 'react';
+import { Product, Order, PurchaseOrder, StockCheck, StockCheckItem, ViewMode } from '../../types';
 import { 
   Search, 
   Plus, 
@@ -22,9 +22,14 @@ import {
   ClipboardCheck,
   ShoppingCart,
   Truck,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Calendar,
+  Layers,
+  Check,
+  SlidersHorizontal
 } from 'lucide-react';
 import { resetAndSeedDatabase, deleteProduct } from '../../lib/productsService';
+import { updateStockCheck } from '../../lib/stockCheckService';
 import { parseDateToMillis } from '../../utils/dateUtils';
 import { ImportExcelModal } from './ImportExcelModal';
 import { Pagination } from '../Pagination';
@@ -33,8 +38,11 @@ interface GoodsModalProps {
   products: Product[];
   orders?: Order[];
   purchases?: PurchaseOrder[];
+  stockChecks?: StockCheck[];
   onAddProduct: (product: Product) => void;
   onUpdateProduct: (product: Product) => void;
+  onAddStockCheck?: (sc: Omit<StockCheck, 'id'>) => Promise<string>;
+  currentView?: ViewMode;
 }
 
 export interface StockLedgerEntry {
@@ -53,7 +61,8 @@ export interface StockLedgerEntry {
 function buildStockLedger(
   p: Product,
   orders: Order[] = [],
-  purchases: PurchaseOrder[] = []
+  purchases: PurchaseOrder[] = [],
+  stockChecks: StockCheck[] = []
 ): StockLedgerEntry[] {
   const rawEntries: Array<{
     id: string;
@@ -180,18 +189,26 @@ function buildStockLedger(
     }
   }
 
-  // 3. Stock Audits / Checks (Kiểm kho)
-  rawEntries.push({
-    id: `check-1-${p.id}`,
-    timestamp: new Date('2026-07-01T16:00:00').getTime(),
-    timeStr: '01/07/2026 16:00',
-    docCode: `PKK000${(codeNum % 90) + 10}`,
-    docType: 'Kiểm kho',
-    categoryKey: 'check',
-    partner: 'Chống Thấm 36',
-    unitPrice: p.costPrice || p.price,
-    changeQty: +2,
-    note: 'Kiểm kho định kỳ tháng 7 - Cân bằng tồn kho',
+  // 3. Stock Audits / Checks (Kiểm kho) - Only from actual stock check documents
+  stockChecks.forEach((sc) => {
+    if (!sc.items) return;
+    const matchItem = sc.items.find(
+      (item) => item.productCode === p.code || (item.productName && item.productName.toLowerCase() === p.name.toLowerCase())
+    );
+    if (matchItem) {
+      rawEntries.push({
+        id: `sc-${sc.id}-${p.code}`,
+        timestamp: parseDateToMillis(sc.time, sc.createdAt),
+        timeStr: sc.time || '01/07/2026 16:00',
+        docCode: sc.code,
+        docType: 'Kiểm kho',
+        categoryKey: 'check',
+        partner: 'Chống Thấm 36',
+        unitPrice: p.costPrice || p.price,
+        changeQty: matchItem.diffQty,
+        note: sc.note || 'Kiểm kho cân bằng tồn kho',
+      });
+    }
   });
 
   // Sort ascending by timestamp to calculate running ending stock
@@ -226,15 +243,43 @@ export const GoodsModal: React.FC<GoodsModalProps> = ({
   products,
   orders = [],
   purchases = [],
+  stockChecks = [],
   onAddProduct,
   onUpdateProduct,
+  onAddStockCheck,
+  currentView,
 }) => {
+  const [selectedMainTab, setSelectedMainTab] = useState<'goods' | 'stock-check'>(
+    currentView === 'stock-check' ? 'stock-check' : 'goods'
+  );
+
+  useEffect(() => {
+    if (currentView === 'stock-check') {
+      setSelectedMainTab('stock-check');
+    } else if (currentView === 'goods') {
+      setSelectedMainTab('goods');
+    }
+  }, [currentView]);
+
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('Tất cả');
   const [selectedItemType, setSelectedItemType] = useState<string>('Tất cả');
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isResetting, setIsResetting] = useState(false);
+
+  // Stock check states
+  const [stockCheckSearch, setStockCheckSearch] = useState('');
+  const [selectedStockCheckId, setSelectedStockCheckId] = useState<string | null>(null);
+  const [selectedStockCheckRows, setSelectedStockCheckRows] = useState<string[]>([]);
+  const [showAddStockCheckModal, setShowAddStockCheckModal] = useState(false);
+  const [stockCheckPage, setStockCheckPage] = useState(1);
+  const stockCheckPageSize = 10;
+
+  // New stock check form state
+  const [newScNote, setNewScNote] = useState('Kiểm kho định kỳ');
+  const [newScItems, setNewScItems] = useState<{ product: Product; actualQty: number }[]>([]);
+  const [scProductSearch, setScProductSearch] = useState('');
 
   // Selected product row for expanded details
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
@@ -299,6 +344,133 @@ export const GoodsModal: React.FC<GoodsModalProps> = ({
     const start = (currentPage - 1) * pageSize;
     return filtered.slice(start, start + pageSize);
   }, [filtered, currentPage, pageSize]);
+
+  // Stock Checks memoized list sorted by time descending
+  const filteredStockChecks = React.useMemo(() => {
+    const list = (stockChecks || []).filter((sc) => {
+      const q = stockCheckSearch.toLowerCase();
+      return (
+        sc.code.toLowerCase().includes(q) ||
+        (sc.note && sc.note.toLowerCase().includes(q))
+      );
+    });
+    return list.sort((a, b) => {
+      const timeA = parseDateToMillis(a.time, a.createdAt);
+      const timeB = parseDateToMillis(b.time, b.createdAt);
+      if (timeA !== timeB) return timeB - timeA;
+      return b.code.localeCompare(a.code);
+    });
+  }, [stockChecks, stockCheckSearch]);
+
+  const paginatedStockChecks = React.useMemo(() => {
+    const start = (stockCheckPage - 1) * stockCheckPageSize;
+    return filteredStockChecks.slice(start, start + stockCheckPageSize);
+  }, [filteredStockChecks, stockCheckPage]);
+
+  const handleToggleStarStockCheck = async (sc: StockCheck, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await updateStockCheck(sc.id, { starred: !sc.starred });
+    } catch (err) {
+      console.error('Error toggling star on stock check:', err);
+    }
+  };
+
+  const handleToggleSelectStockCheckRow = (id: string, e: React.MouseEvent | React.ChangeEvent<HTMLInputElement>) => {
+    e.stopPropagation();
+    if (selectedStockCheckRows.includes(id)) {
+      setSelectedStockCheckRows(selectedStockCheckRows.filter((r) => r !== id));
+    } else {
+      setSelectedStockCheckRows([...selectedStockCheckRows, id]);
+    }
+  };
+
+  const handleSelectAllStockChecks = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      setSelectedStockCheckRows(paginatedStockChecks.map((sc) => sc.id));
+    } else {
+      setSelectedStockCheckRows([]);
+    }
+  };
+
+  const handleOpenAddStockCheck = () => {
+    // Pre-populate with first 3 products for easy audit testing
+    const defaultItems = products.slice(0, 3).map((p) => ({
+      product: p,
+      actualQty: p.stock + 1, // small difference
+    }));
+    setNewScItems(defaultItems);
+    setNewScNote('Kiểm kho định kỳ cửa hàng');
+    setShowAddStockCheckModal(true);
+  };
+
+  const handleSaveStockCheck = async () => {
+    if (newScItems.length === 0) {
+      alert('Vui lòng chọn ít nhất 1 mặt hàng để kiểm kho!');
+      return;
+    }
+
+    let totalActualQty = 0;
+    let totalActualVal = 0;
+    let totalIncrease = 0;
+    let totalDecrease = 0;
+
+    const items: StockCheckItem[] = newScItems.map(({ product, actualQty }) => {
+      const sysQty = product.stock || 0;
+      const diff = actualQty - sysQty;
+      const cost = product.costPrice || product.price || 0;
+
+      totalActualQty += actualQty;
+      totalActualVal += actualQty * cost;
+
+      if (diff > 0) totalIncrease += diff;
+      if (diff < 0) totalDecrease += Math.abs(diff);
+
+      return {
+        productId: product.id,
+        productCode: product.code,
+        productName: product.name,
+        systemQty: sysQty,
+        actualQty,
+        diffQty: diff,
+        costPrice: cost,
+      };
+    });
+
+    const now = new Date();
+    const day = String(now.getDate()).padStart(2, '0');
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const year = now.getFullYear();
+    const hours = String(now.getHours()).padStart(2, '0');
+    const mins = String(now.getMinutes()).padStart(2, '0');
+    const timeFormatted = `${day}/${month}/${year} ${hours}:${mins}`;
+
+    const scNum = Math.floor(656 + Math.random() * 100);
+    const code = `KK000${scNum}`;
+
+    const newSc: Omit<StockCheck, 'id'> = {
+      code,
+      time: timeFormatted,
+      balancedDate: timeFormatted,
+      actualQty: totalActualQty,
+      totalActualValue: totalActualVal,
+      totalDiff: totalIncrease + totalDecrease,
+      increaseDiffQty: totalIncrease,
+      decreaseDiffQty: totalDecrease,
+      status: 'Đã cân bằng',
+      note: newScNote,
+      items,
+      starred: false,
+      createdAt: now.toISOString(),
+    };
+
+    if (onAddStockCheck) {
+      await onAddStockCheck(newSc);
+    }
+
+    setShowAddStockCheckModal(false);
+    alert(`Đã lưu và cân bằng phiếu kiểm kho ${code} thành công!`);
+  };
 
   const handleOpenAddModal = () => {
     setEditingProduct(null);
@@ -413,55 +585,277 @@ export const GoodsModal: React.FC<GoodsModalProps> = ({
   };
 
   return (
-    <div className="flex-1 bg-[#f3f4f6] p-4 flex flex-col space-y-4 overflow-auto">
-      {/* Top Banner - Firebase Status & Toolbar */}
-      <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-        <div className="flex items-center space-x-3">
-          <div className="p-2.5 bg-indigo-50 text-[#1e0b54] rounded-lg border border-indigo-100">
-            <Package className="w-6 h-6" />
-          </div>
-          <div>
-            <div className="flex items-center space-x-2">
-              <h2 className="text-base font-extrabold text-gray-900">Danh Sách Hàng Hóa (Firebase Firestore)</h2>
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                <CheckCircle2 className="w-3 h-3 mr-1" /> Firestore Connected
-              </span>
-            </div>
-            <p className="text-xs text-gray-500 mt-0.5">
-              Cấu trúc bảng chuẩn theo file mẫu Excel uploaded • Nhấn vào từng dòng để xem chi tiết
-            </p>
-          </div>
+    <div className="flex-1 bg-[#f3f4f6] p-4 flex flex-col space-y-3 overflow-auto">
+      {/* Main Navigation Bar */}
+      <div className="bg-white rounded-xl shadow-2xs border border-gray-200/90 p-2 sm:px-4 sm:py-2.5 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        {/* Left: Pill Container for Tabs (Danh sách hàng hóa & Kiểm kho) */}
+        <div className="bg-[#f0f2f8] p-1 rounded-xl border border-gray-200/80 inline-flex items-center space-x-1 self-start sm:self-auto">
+          <button
+            onClick={() => setSelectedMainTab('goods')}
+            className={`px-4 py-2 font-bold text-xs sm:text-sm rounded-lg transition-all flex items-center space-x-1.5 cursor-pointer ${
+              selectedMainTab === 'goods'
+                ? 'bg-[#1e0b54] text-white shadow-2xs'
+                : 'text-gray-700 hover:text-gray-900 hover:bg-gray-200/60 font-medium'
+            }`}
+          >
+            <span>Danh sách hàng hóa</span>
+          </button>
+
+          <button
+            onClick={() => setSelectedMainTab('stock-check')}
+            className={`px-4 py-2 font-bold text-xs sm:text-sm rounded-lg transition-all flex items-center space-x-1.5 cursor-pointer ${
+              selectedMainTab === 'stock-check'
+                ? 'bg-[#1e0b54] text-white shadow-2xs'
+                : 'text-gray-700 hover:text-gray-900 hover:bg-gray-200/60 font-medium'
+            }`}
+          >
+            <span>Kiểm kho</span>
+          </button>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-          <button
-            onClick={() => setShowImportExcelModal(true)}
-            title="Nhập hàng loạt sản phẩm từ file Excel (.xlsx, .xls, .csv)"
-            className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-3 py-2 rounded-md text-xs flex items-center shadow-xs transition-colors"
-          >
-            <FileSpreadsheet className="w-4 h-4 mr-1.5 text-emerald-200" />
-            Import File
-          </button>
+        {/* Right: Primary Action Buttons */}
+        <div className="flex items-center space-x-2 shrink-0">
+          {selectedMainTab === 'goods' ? (
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => setShowImportExcelModal(true)}
+                title="Nhập hàng loạt sản phẩm từ file Excel (.xlsx, .xls, .csv)"
+                className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-3.5 py-2 rounded-lg text-xs sm:text-sm flex items-center shadow-2xs transition-colors cursor-pointer"
+              >
+                <FileSpreadsheet className="w-4 h-4 mr-1.5 text-emerald-200" />
+                Import File
+              </button>
 
-          <button
-            onClick={handleResetFirebase}
-            disabled={isResetting}
-            title="Đồng bộ lại 22 mặt hàng mẫu ban đầu lên Firebase"
-            className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-3 py-2 rounded-md text-xs flex items-center transition-colors border border-slate-300 disabled:opacity-50"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 mr-1 text-slate-600 ${isResetting ? 'animate-spin' : ''}`} />
-            {isResetting ? 'Đang nạp...' : 'Tải lại mẫu chuẩn'}
-          </button>
-
-          <button
-            onClick={handleOpenAddModal}
-            className="bg-[#1e0b54] hover:bg-[#15073c] text-white font-bold px-3.5 py-2 rounded-md text-xs flex items-center shadow-xs transition-colors"
-          >
-            <Plus className="w-4 h-4 mr-1 text-amber-400" />
-            Thêm hàng hóa mới
-          </button>
+              <button
+                onClick={handleOpenAddModal}
+                className="bg-[#1e0b54] hover:bg-[#15073c] text-white font-bold px-4 py-2 rounded-lg text-xs sm:text-sm flex items-center shadow-sm transition-colors cursor-pointer"
+              >
+                <Plus className="w-4 h-4 mr-1.5 text-amber-400 font-bold" />
+                Thêm hàng hóa
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={handleOpenAddStockCheck}
+              className="bg-[#1e0b54] hover:bg-[#15073c] text-white font-bold px-4 py-2 rounded-lg text-xs sm:text-sm flex items-center shadow-sm transition-colors cursor-pointer"
+            >
+              <Plus className="w-4 h-4 mr-1.5 text-amber-400 font-bold" />
+              Tạo phiếu kiểm kho
+            </button>
+          )}
         </div>
       </div>
+
+      {selectedMainTab === 'stock-check' ? (
+        /* Stock Check View matching screenshot layout */
+        <div className="flex-1 flex flex-col space-y-3">
+
+          {/* Search bar */}
+          <div className="bg-white rounded-lg shadow-sm p-3 border border-gray-100 flex flex-col md:flex-row gap-3 items-center justify-between">
+            <div className="relative flex-1 w-full max-w-md">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                value={stockCheckSearch}
+                onChange={(e) => {
+                  setStockCheckSearch(e.target.value);
+                  setStockCheckPage(1);
+                }}
+                placeholder="Tìm kiếm theo mã kiểm kho, ghi chú..."
+                className="w-full pl-9 pr-3 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:border-[#1e0b54]"
+              />
+            </div>
+
+            <div className="text-xs text-gray-500 font-medium">
+              Hiển thị <span className="font-bold text-gray-800">{filteredStockChecks.length}</span> phiếu kiểm kho
+            </div>
+          </div>
+
+          {/* Stock Check Data Table - EXACT screenshot columns */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden flex-1 flex flex-col">
+            <div className="overflow-x-auto flex-1">
+              <table className="w-full text-left text-xs border-collapse min-w-[900px]">
+                <thead className="bg-[#eef4ff] text-slate-800 font-bold text-[12px] border-b border-blue-200">
+                  <tr>
+                    <th className="p-2.5 text-center w-10 border-r border-blue-100">
+                      <input
+                        type="checkbox"
+                        checked={selectedStockCheckRows.length === paginatedStockChecks.length && paginatedStockChecks.length > 0}
+                        onChange={handleSelectAllStockChecks}
+                        className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                      />
+                    </th>
+                    <th className="p-2.5 text-center w-10 border-r border-blue-100">
+                      <Star className="w-4 h-4 text-gray-400 mx-auto" />
+                    </th>
+                    <th className="p-2.5 border-r border-blue-100 whitespace-nowrap font-bold">Mã kiểm kho</th>
+                    <th className="p-2.5 border-r border-blue-100 whitespace-nowrap font-bold">Thời gian</th>
+                    <th className="p-2.5 border-r border-blue-100 whitespace-nowrap font-bold">Ngày cân bằng</th>
+                    <th className="p-2.5 border-r border-blue-100 text-right whitespace-nowrap font-bold">SL thực tế</th>
+                    <th className="p-2.5 border-r border-blue-100 text-right whitespace-nowrap font-bold">Tổng thực tế</th>
+                    <th className="p-2.5 border-r border-blue-100 text-right whitespace-nowrap font-bold">Tổng chênh lệch</th>
+                    <th className="p-2.5 border-r border-blue-100 text-right whitespace-nowrap font-bold">SL lệch tăng</th>
+                    <th className="p-2.5 text-right whitespace-nowrap font-bold">SL lệch giảm</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200 text-gray-800">
+                  {paginatedStockChecks.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="text-center py-12 text-gray-400 italic">
+                        Không tìm thấy phiếu kiểm kho nào.
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedStockChecks.map((sc) => {
+                      const isSelected = selectedStockCheckId === sc.id;
+                      const isRowChecked = selectedStockCheckRows.includes(sc.id);
+
+                      return (
+                        <React.Fragment key={sc.id}>
+                          <tr
+                            onClick={() => setSelectedStockCheckId(isSelected ? null : sc.id)}
+                            className={`cursor-pointer transition-colors ${
+                              isSelected
+                                ? 'bg-blue-50/90 font-medium text-blue-900 border-l-4 border-l-blue-600'
+                                : 'hover:bg-amber-50/40'
+                            }`}
+                          >
+                            <td className="p-2.5 text-center border-r border-gray-100" onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type="checkbox"
+                                checked={isRowChecked}
+                                onChange={(e) => handleToggleSelectStockCheckRow(sc.id, e)}
+                                className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                              />
+                            </td>
+                            <td className="p-2.5 text-center border-r border-gray-100" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                onClick={(e) => handleToggleStarStockCheck(sc, e)}
+                                className="focus:outline-none"
+                              >
+                                <Star
+                                  className={`w-4 h-4 mx-auto transition-colors ${
+                                    sc.starred
+                                      ? 'text-amber-400 fill-amber-400'
+                                      : 'text-gray-300 hover:text-amber-400'
+                                  }`}
+                                />
+                              </button>
+                            </td>
+                            <td className="p-2.5 border-r border-gray-100 font-mono font-bold text-slate-800 whitespace-nowrap">
+                              {sc.code}
+                            </td>
+                            <td className="p-2.5 border-r border-gray-100 whitespace-nowrap text-gray-700">
+                              {sc.time}
+                            </td>
+                            <td className="p-2.5 border-r border-gray-100 whitespace-nowrap text-gray-700">
+                              {sc.balancedDate}
+                            </td>
+                            <td className="p-2.5 border-r border-gray-100 text-right font-medium text-gray-900 font-mono">
+                              {sc.actualQty}
+                            </td>
+                            <td className="p-2.5 border-r border-gray-100 text-right font-bold text-gray-900 font-mono">
+                              {sc.totalActualValue ? sc.totalActualValue.toLocaleString('vi-VN') : '0'}
+                            </td>
+                            <td className="p-2.5 border-r border-gray-100 text-right font-medium text-gray-900 font-mono">
+                              {sc.totalDiff}
+                            </td>
+                            <td className="p-2.5 border-r border-gray-100 text-right font-medium text-gray-900 font-mono">
+                              {sc.increaseDiffQty}
+                            </td>
+                            <td className="p-2.5 text-right font-medium text-gray-900 font-mono">
+                              {sc.decreaseDiffQty}
+                            </td>
+                          </tr>
+
+                          {/* Expandable detail row */}
+                          {isSelected && (
+                            <tr className="bg-sky-50/50">
+                              <td colSpan={10} className="p-4 border-b border-gray-200">
+                                <div className="bg-white rounded-lg p-3.5 border border-sky-200 shadow-xs space-y-3">
+                                  <div className="flex justify-between items-center border-b border-gray-100 pb-2">
+                                    <div>
+                                      <span className="font-bold text-sm text-[#1e0b54] mr-2">
+                                        Chi tiết phiếu: {sc.code}
+                                      </span>
+                                      <span className="text-xs text-gray-500">
+                                        ({sc.note || 'Không có ghi chú'})
+                                      </span>
+                                    </div>
+                                    <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                      {sc.status || 'Đã cân bằng'}
+                                    </span>
+                                  </div>
+
+                                  <table className="w-full text-left text-xs border border-gray-200 rounded">
+                                    <thead className="bg-gray-100 text-gray-700 font-bold">
+                                      <tr>
+                                        <th className="p-2 border-r border-gray-200">Mã hàng</th>
+                                        <th className="p-2 border-r border-gray-200">Tên hàng</th>
+                                        <th className="p-2 border-r border-gray-200 text-right">SL sổ sách</th>
+                                        <th className="p-2 border-r border-gray-200 text-right">SL thực tế</th>
+                                        <th className="p-2 border-r border-gray-200 text-right">Chênh lệch</th>
+                                        <th className="p-2 border-r border-gray-200 text-right">Giá vốn</th>
+                                        <th className="p-2 text-right">Thành tiền thực tế</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-200 text-gray-800">
+                                      {sc.items && sc.items.length > 0 ? (
+                                        sc.items.map((item, i) => (
+                                          <tr key={i} className="hover:bg-gray-50">
+                                            <td className="p-2 border-r border-gray-200 font-mono font-bold text-indigo-900">{item.productCode}</td>
+                                            <td className="p-2 border-r border-gray-200 font-medium">{item.productName}</td>
+                                            <td className="p-2 border-r border-gray-200 text-right font-mono text-gray-600">{item.systemQty}</td>
+                                            <td className="p-2 border-r border-gray-200 text-right font-mono font-bold text-gray-900">{item.actualQty}</td>
+                                            <td className="p-2 border-r border-gray-200 text-right font-mono font-bold">
+                                              {item.diffQty > 0 ? (
+                                                <span className="text-emerald-600">+{item.diffQty}</span>
+                                              ) : item.diffQty < 0 ? (
+                                                <span className="text-rose-600">{item.diffQty}</span>
+                                              ) : (
+                                                <span className="text-gray-400">0</span>
+                                              )}
+                                            </td>
+                                            <td className="p-2 border-r border-gray-200 text-right font-mono text-gray-600">
+                                              {item.costPrice ? `${item.costPrice.toLocaleString('vi-VN')}đ` : '0đ'}
+                                            </td>
+                                            <td className="p-2 text-right font-mono font-bold text-indigo-900">
+                                              {(item.actualQty * (item.costPrice || 0)).toLocaleString('vi-VN')}đ
+                                            </td>
+                                          </tr>
+                                        ))
+                                      ) : (
+                                        <tr>
+                                          <td colSpan={7} className="p-3 text-center text-gray-400 italic">
+                                            Không có chi tiết sản phẩm
+                                          </td>
+                                        </tr>
+                                      )}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <Pagination
+              currentPage={stockCheckPage}
+              totalCount={filteredStockChecks.length}
+              pageSize={stockCheckPageSize}
+              onPageChange={(page) => setStockCheckPage(page)}
+            />
+          </div>
+        </div>
+      ) : (
+        /* Goods List View */
+        <>
 
       {/* Filter & Search Bar */}
       <div className="bg-white rounded-lg shadow-sm p-3.5 border border-gray-100 flex flex-col md:flex-row gap-3 items-center">
@@ -855,7 +1249,7 @@ export const GoodsModal: React.FC<GoodsModalProps> = ({
                               )}
 
                               {activeTab === 'history' && (() => {
-                                const ledger = buildStockLedger(p, orders, purchases);
+                                const ledger = buildStockLedger(p, orders, purchases, stockChecks);
                                 
                                 const filteredLedger = ledger.filter((entry) => {
                                   const matchType =
@@ -1124,6 +1518,8 @@ export const GoodsModal: React.FC<GoodsModalProps> = ({
           pageSizeOptions={[10, 20, 50, 100]}
         />
       </div>
+        </>
+      )}
 
       {/* Add / Edit Product Modal */}
       {showAddModal && (
@@ -1457,7 +1853,7 @@ export const GoodsModal: React.FC<GoodsModalProps> = ({
                           )}
                         </td>
                         <td className="p-2.5 text-right font-mono font-bold text-gray-900">
-                          {(Math.abs(selectedDocDetail.entry.changeQty) * selectedDocDetail.entry.unitPrice).toLocaleString('vi-VN')}đ
+                          {(Math.abs(selectedDocDetail.entry.changeQty || 0) * (selectedDocDetail.entry.unitPrice || 0)).toLocaleString('vi-VN')}đ
                         </td>
                       </tr>
                     </tbody>
@@ -1470,7 +1866,7 @@ export const GoodsModal: React.FC<GoodsModalProps> = ({
                 <div className="text-right space-y-1">
                   <span className="text-gray-500 text-xs">Giá trị giao dịch chứng từ:</span>
                   <div className="text-lg font-extrabold font-mono text-blue-900">
-                    {(Math.abs(selectedDocDetail.entry.changeQty) * selectedDocDetail.entry.unitPrice).toLocaleString('vi-VN')}đ
+                    {(Math.abs(selectedDocDetail.entry.changeQty || 0) * (selectedDocDetail.entry.unitPrice || 0)).toLocaleString('vi-VN')}đ
                   </div>
                 </div>
               </div>
@@ -1493,6 +1889,152 @@ export const GoodsModal: React.FC<GoodsModalProps> = ({
                 className="px-5 py-1.5 bg-[#1e0b54] hover:bg-[#15073c] text-white rounded-lg text-xs font-bold transition-colors shadow-xs"
               >
                 Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Stock Check Slip Modal */}
+      {showAddStockCheckModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl overflow-hidden border border-gray-200 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] flex flex-col">
+            {/* Header */}
+            <div className="flex justify-between items-center px-6 py-4 bg-[#1e0b54] text-white">
+              <div className="flex items-center space-x-2">
+                <ClipboardCheck className="w-5 h-5 text-amber-400" />
+                <h3 className="font-bold text-base">Tạo phiếu kiểm kho (Cân bằng tồn kho)</h3>
+              </div>
+              <button
+                onClick={() => setShowAddStockCheckModal(false)}
+                className="p-1 hover:bg-white/10 rounded-full text-white/80 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 overflow-y-auto space-y-4 flex-1">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">Ghi chú phiếu kiểm</label>
+                <input
+                  type="text"
+                  value={newScNote}
+                  onChange={(e) => setNewScNote(e.target.value)}
+                  className="w-full text-xs p-2 border border-gray-300 rounded focus:outline-none focus:border-[#1e0b54]"
+                  placeholder="Ví dụ: Kiểm kho định kỳ tháng 8..."
+                />
+              </div>
+
+              {/* Add Product selector */}
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">Thêm hàng hóa vào danh sách kiểm</label>
+                <div className="flex gap-2">
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      const pId = e.target.value;
+                      if (!pId) return;
+                      const prod = products.find((p) => p.id === pId);
+                      if (prod && !newScItems.some((i) => i.product.id === prod.id)) {
+                        setNewScItems([...newScItems, { product: prod, actualQty: prod.stock }]);
+                      }
+                    }}
+                    className="flex-1 text-xs p-2 border border-gray-300 rounded bg-white focus:outline-none focus:border-[#1e0b54]"
+                  >
+                    <option value="">-- Chọn hàng hóa để thêm vào phiếu kiểm --</option>
+                    {products.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.code} - {p.name} (Tồn hiện tại: {p.stock})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Items Table */}
+              <div className="border border-gray-200 rounded-lg overflow-hidden">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-sky-50 text-slate-700 font-bold border-b border-sky-200">
+                    <tr>
+                      <th className="p-2.5">Mã hàng</th>
+                      <th className="p-2.5">Tên hàng</th>
+                      <th className="p-2.5 text-right">SL sổ sách</th>
+                      <th className="p-2.5 text-right w-32">SL thực tế</th>
+                      <th className="p-2.5 text-right">Chênh lệch</th>
+                      <th className="p-2.5 text-center w-12">Xóa</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {newScItems.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="text-center py-8 text-gray-400 italic">
+                          Chưa có sản phẩm nào trong phiếu kiểm. Hãy chọn sản phẩm ở trên.
+                        </td>
+                      </tr>
+                    ) : (
+                      newScItems.map(({ product, actualQty }, idx) => {
+                        const diff = actualQty - product.stock;
+                        return (
+                          <tr key={product.id}>
+                            <td className="p-2 font-mono font-bold text-indigo-900">{product.code}</td>
+                            <td className="p-2 font-medium text-gray-900">{product.name}</td>
+                            <td className="p-2 text-right font-mono text-gray-600">{product.stock}</td>
+                            <td className="p-2 text-right">
+                              <input
+                                type="number"
+                                min={0}
+                                value={isNaN(actualQty) ? 0 : actualQty}
+                                onChange={(e) => {
+                                  const val = Math.max(0, Number(e.target.value) || 0);
+                                  const updated = [...newScItems];
+                                  updated[idx].actualQty = val;
+                                  setNewScItems(updated);
+                                }}
+                                className="w-20 text-right p-1 font-mono font-bold border border-gray-300 rounded focus:outline-none focus:border-[#1e0b54]"
+                              />
+                            </td>
+                            <td className="p-2 text-right font-mono font-bold">
+                              {diff > 0 ? (
+                                <span className="text-emerald-600">+{diff}</span>
+                              ) : diff < 0 ? (
+                                <span className="text-rose-600">{diff}</span>
+                              ) : (
+                                <span className="text-gray-400">0</span>
+                              )}
+                            </td>
+                            <td className="p-2 text-center">
+                              <button
+                                onClick={() => {
+                                  setNewScItems(newScItems.filter((_, i) => i !== idx));
+                                }}
+                                className="text-red-500 hover:text-red-700 p-1"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-between items-center px-6 py-3 bg-gray-50 border-t border-gray-200">
+              <button
+                onClick={() => setShowAddStockCheckModal(false)}
+                className="px-4 py-2 border border-gray-300 rounded text-xs font-semibold text-gray-600 hover:bg-white"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={handleSaveStockCheck}
+                className="px-5 py-2 bg-[#1e0b54] hover:bg-[#15073c] text-white rounded text-xs font-bold shadow-md"
+              >
+                Hoàn thành & Cân bằng kho
               </button>
             </div>
           </div>

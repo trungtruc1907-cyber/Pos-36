@@ -16,6 +16,8 @@ export const StatsCards: React.FC<StatsCardsProps> = ({
   vsYesterdayPercent,
   vsLastMonthPercent,
 }) => {
+  const safeYesterday = isNaN(vsYesterdayPercent) || !isFinite(vsYesterdayPercent) ? 0 : vsYesterdayPercent;
+  const safeLastMonth = isNaN(vsLastMonthPercent) || !isFinite(vsLastMonthPercent) ? 0 : vsLastMonthPercent;
   return (
     <section className="bg-white rounded-xl shadow-2xs border border-gray-100 p-5 sm:p-6">
       <h2 className="text-lg font-bold text-gray-900 mb-5">Kết quả bán hàng hôm nay</h2>
@@ -30,7 +32,7 @@ export const StatsCards: React.FC<StatsCardsProps> = ({
           <div>
             <div className="text-xs text-gray-500 font-normal">Doanh thu</div>
             <div className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight leading-snug">
-              {todayRevenue.toLocaleString('vi-VN')}
+              {(todayRevenue || 0).toLocaleString('vi-VN')}
             </div>
             <div className="text-xs text-gray-400 mt-0.5">{todayOrdersCount} hóa đơn</div>
           </div>
@@ -44,7 +46,7 @@ export const StatsCards: React.FC<StatsCardsProps> = ({
           <div>
             <div className="text-xs text-gray-500 font-normal">Trả hàng</div>
             <div className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight leading-snug">
-              {todayReturns.toLocaleString('vi-VN')}
+              {(todayReturns || 0).toLocaleString('vi-VN')}
             </div>
           </div>
         </div>
@@ -52,7 +54,7 @@ export const StatsCards: React.FC<StatsCardsProps> = ({
         {/* Item 3: Doanh thu thuần - So với hôm qua */}
         <div className="flex items-start space-x-3 pt-4 sm:pt-0 lg:px-4 lg:border-l lg:border-gray-200/80">
           <div className="shrink-0 mt-0.5">
-            {vsYesterdayPercent >= 0 ? (
+            {safeYesterday >= 0 ? (
               <ArrowUp className="w-5 h-5 text-[#00b074] stroke-[2.5]" />
             ) : (
               <ArrowDown className="w-5 h-5 text-red-500 stroke-[2.5]" />
@@ -61,7 +63,7 @@ export const StatsCards: React.FC<StatsCardsProps> = ({
           <div>
             <div className="text-xs text-gray-500 font-normal">Doanh thu thuần</div>
             <div className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight leading-snug">
-              {vsYesterdayPercent > 0 ? `${vsYesterdayPercent}%` : `${vsYesterdayPercent}%`}
+              {safeYesterday > 0 ? `+${safeYesterday}%` : `${safeYesterday}%`}
             </div>
             <div className="text-xs text-gray-400 mt-0.5">So với hôm qua</div>
           </div>
@@ -70,7 +72,7 @@ export const StatsCards: React.FC<StatsCardsProps> = ({
         {/* Item 4: Doanh thu thuần - So với cùng kỳ tháng trước */}
         <div className="flex items-start space-x-3 pt-4 sm:pt-0 lg:pl-4 lg:border-l lg:border-gray-200/80">
           <div className="shrink-0 mt-0.5">
-            {vsLastMonthPercent >= 0 ? (
+            {safeLastMonth >= 0 ? (
               <ArrowUp className="w-5 h-5 text-[#00b074] stroke-[2.5]" />
             ) : (
               <ArrowDown className="w-5 h-5 text-red-500 stroke-[2.5]" />
@@ -79,7 +81,7 @@ export const StatsCards: React.FC<StatsCardsProps> = ({
           <div>
             <div className="text-xs text-gray-500 font-normal">Doanh thu thuần</div>
             <div className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight leading-snug">
-              {vsLastMonthPercent > 0 ? `${vsLastMonthPercent}%` : `${vsLastMonthPercent}%`}
+              {safeLastMonth > 0 ? `+${safeLastMonth}%` : `${safeLastMonth}%`}
             </div>
             <div className="text-xs text-gray-400 mt-0.5">So với cùng kỳ tháng trước</div>
           </div>

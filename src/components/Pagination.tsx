@@ -25,11 +25,15 @@ export const Pagination: React.FC<PaginationProps> = ({
   pageSizeOptions = [10, 20, 50, 100],
   className = ''
 }) => {
-  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
-  const safePage = Math.min(Math.max(1, currentPage), totalPages);
+  const safeTotalItems = isNaN(totalItems) || totalItems < 0 ? 0 : totalItems;
+  const safePageSize = isNaN(pageSize) || pageSize <= 0 ? 10 : pageSize;
+  const rawCurrentPage = isNaN(currentPage) || currentPage < 1 ? 1 : currentPage;
 
-  const startItem = totalItems === 0 ? 0 : (safePage - 1) * pageSize + 1;
-  const endItem = Math.min(safePage * pageSize, totalItems);
+  const totalPages = Math.max(1, Math.ceil(safeTotalItems / safePageSize));
+  const safePage = Math.min(Math.max(1, rawCurrentPage), totalPages);
+
+  const startItem = safeTotalItems === 0 ? 0 : (safePage - 1) * safePageSize + 1;
+  const endItem = Math.min(safePage * safePageSize, safeTotalItems);
 
   // Generate page numbers with smart ellipsis
   const getPageNumbers = () => {
@@ -46,21 +50,23 @@ export const Pagination: React.FC<PaginationProps> = ({
     }
 
     for (let i = rangeStart; i <= rangeEnd; i++) {
-      pages.push(i);
+      if (!isNaN(i)) {
+        pages.push(i);
+      }
     }
 
     if (rangeEnd < totalPages - 1) {
       pages.push('...');
     }
 
-    if (totalPages > 1) {
+    if (totalPages > 1 && !isNaN(totalPages)) {
       pages.push(totalPages);
     }
 
     return pages;
   };
 
-  if (totalItems === 0) {
+  if (safeTotalItems === 0) {
     return (
       <div className={`flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 bg-gray-50 border-t border-gray-200 text-xs text-gray-500 ${className}`}>
         <span>Không có dữ liệu</span>
@@ -74,7 +80,7 @@ export const Pagination: React.FC<PaginationProps> = ({
       {/* Left: Summary & Page Size Select */}
       <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto justify-between sm:justify-start">
         <div className="text-gray-600 font-medium">
-          Hiển thị <span className="font-bold text-gray-900">{startItem}</span> - <span className="font-bold text-gray-900">{endItem}</span> trên tổng số <span className="font-bold text-[#1e0b54]">{totalItems.toLocaleString('vi-VN')}</span> bản ghi
+          Hiển thị <span className="font-bold text-gray-900">{startItem}</span> - <span className="font-bold text-gray-900">{endItem}</span> trên tổng số <span className="font-bold text-[#1e0b54]">{(safeTotalItems || 0).toLocaleString('vi-VN')}</span> bản ghi
         </div>
 
         {onPageSizeChange && (

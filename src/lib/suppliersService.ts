@@ -131,26 +131,8 @@ export const INITIAL_FIRESTORE_SUPPLIERS: Omit<Supplier, 'id'>[] = [
  * Seed initial suppliers if collection is empty
  */
 export async function seedSuppliersIfEmpty(): Promise<void> {
-  try {
-    const querySnapshot = await getDocs(collection(db, SUPPLIERS_COLLECTION));
-    if (querySnapshot.empty) {
-      console.log('Suppliers collection is empty. Seeding initial supplier records...');
-      const batch = writeBatch(db);
-      for (const supp of INITIAL_FIRESTORE_SUPPLIERS) {
-        const id = supp.code;
-        const docRef = doc(db, SUPPLIERS_COLLECTION, id);
-        batch.set(docRef, {
-          ...supp,
-          id,
-          createdAt: new Date().toISOString()
-        });
-      }
-      await batch.commit();
-      console.log('Seeded initial suppliers successfully!');
-    }
-  } catch (error) {
-    console.error('Error seeding suppliers:', error);
-  }
+  // Demo auto-seeding disabled
+  return;
 }
 
 /**
@@ -158,10 +140,6 @@ export async function seedSuppliersIfEmpty(): Promise<void> {
  */
 export function subscribeSuppliers(onData: (suppliers: Supplier[]) => void, onError?: (err: Error) => void) {
   const colRef = collection(db, SUPPLIERS_COLLECTION);
-
-  seedSuppliersIfEmpty().then(() => {
-    // seeded
-  }).catch((err) => console.error(err));
 
   return onSnapshot(colRef, (snapshot) => {
     if (snapshot.empty) {
@@ -177,8 +155,8 @@ export function subscribeSuppliers(onData: (suppliers: Supplier[]) => void, onEr
         name: data.name || '',
         phone: data.phone || '',
         email: data.email || '',
-        currentDebt: Number(data.currentDebt || 0),
-        totalPurchased: Number(data.totalPurchased || 0),
+        currentDebt: isNaN(Number(data.currentDebt)) ? 0 : Number(data.currentDebt || 0),
+        totalPurchased: isNaN(Number(data.totalPurchased)) ? 0 : Number(data.totalPurchased || 0),
         address: data.address || '',
         note: data.note || '',
         createdAt: data.createdAt || '',

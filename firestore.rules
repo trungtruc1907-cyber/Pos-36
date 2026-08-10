@@ -16,5 +16,8 @@ service cloud.firestore {
     match /purchases/{document=**} {
       allow read, write: if true;
     }
+    match /stock_checks/{document=**} {
+      allow read, write: if true;
+    }
   }
 }
