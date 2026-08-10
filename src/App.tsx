@@ -273,6 +273,30 @@ export default function App() {
   };
 
   const handleDeletePurchase = async (id: string) => {
+    const targetP = purchases.find((p) => p.id === id);
+    if (targetP && targetP.status === 'Đã nhập hàng') {
+      const pDebt = Math.max(0, (targetP.totalAmount || 0) - (targetP.paidAmount || 0));
+      const pTotal = targetP.totalAmount || 0;
+      const supp = suppliers.find((s) => s.name.toLowerCase() === targetP.supplierName?.toLowerCase());
+      if (supp) {
+        const newDebt = Math.max(0, (supp.currentDebt || 0) - pDebt);
+        const newTotal = Math.max(0, (supp.totalPurchased || 0) - pTotal);
+        handleUpdateSupplier(supp.id, { currentDebt: newDebt, totalPurchased: newTotal });
+      }
+
+      // Revert product stock for deleted completed purchase order
+      if (targetP.items && Array.isArray(targetP.items)) {
+        for (const item of targetP.items) {
+          const prod = products.find(
+            (p) => p.code === item.productCode || p.id === item.productCode
+          );
+          if (prod) {
+            const newStock = Math.max(0, Number(prod.stock || 0) - Number(item.quantity || 0));
+            handleUpdateProduct({ ...prod, stock: newStock });
+          }
+        }
+      }
+    }
     try {
       await deletePurchase(id);
       setPurchases((prev) => prev.filter((p) => p.id !== id));
@@ -509,6 +533,7 @@ export default function App() {
               purchases={purchases}
               products={products}
               suppliers={suppliers}
+              customers={customers}
               currentView={currentView}
               onSelectView={(v) => setCurrentView(v)}
               onReprintOrder={handleReprintOrder}
@@ -528,6 +553,7 @@ export default function App() {
               customers={customers}
               suppliers={suppliers}
               orders={orders}
+              purchases={purchases}
               currentView={currentView}
               onSelectView={(v) => setCurrentView(v)}
               onAddCustomer={handleAddNewCustomer}

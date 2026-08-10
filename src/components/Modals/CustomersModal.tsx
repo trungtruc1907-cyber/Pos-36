@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Customer, Supplier, Order, ViewMode } from '../../types';
+import { Customer, Supplier, Order, PurchaseOrder, ViewMode } from '../../types';
 import { parseDateToMillis } from '../../utils/dateUtils';
 import { Users, Search, Phone, MapPin, UserPlus, X, Building2, UserCheck, Tag, Mail, Pencil, Trash2, Lock, Edit3, Eye, Receipt, Printer } from 'lucide-react';
 import { Pagination } from '../Pagination';
@@ -112,6 +112,7 @@ interface CustomersModalProps {
   customers: Customer[];
   suppliers?: Supplier[];
   orders?: Order[];
+  purchases?: PurchaseOrder[];
   currentView?: ViewMode;
   onSelectView?: (view: ViewMode) => void;
   onAddCustomer: (customer: Customer) => void;
@@ -126,6 +127,7 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
   customers,
   suppliers = [],
   orders = [],
+  purchases = [],
   currentView = 'customers',
   onSelectView,
   onAddCustomer,
@@ -668,85 +670,170 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
                               </div>
                             )}
 
-                            {supplierDetailTab === 'history' && (
-                              <div className="p-4 bg-white">
-                                <table className="w-full text-left text-xs border border-gray-200">
-                                  <thead className="bg-gray-50 text-gray-600 font-bold border-b border-gray-200">
-                                    <tr>
-                                      <th className="p-2.5">Mã phiếu</th>
-                                      <th className="p-2.5">Thời gian</th>
-                                      <th className="p-2.5">Người tạo</th>
-                                      <th className="p-2.5 text-right">Tổng tiền (VNĐ)</th>
-                                      <th className="p-2.5 text-center">Trạng thái</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody className="divide-y divide-gray-100">
-                                    {s.totalPurchased > 0 ? (
-                                      <tr className="hover:bg-gray-50">
-                                        <td className="p-2.5 font-mono text-blue-600 font-bold">
-                                          PN0000{String((s.id.charCodeAt(0) % 90) + 10)}
-                                        </td>
-                                        <td className="p-2.5 font-mono text-gray-600">27/06/2026 10:30</td>
-                                        <td className="p-2.5 text-gray-800 font-medium">Chống Thấm 36</td>
-                                        <td className="p-2.5 text-right font-mono font-bold text-gray-900">
-                                          {(s.totalPurchased || 0).toLocaleString('vi-VN')}đ
-                                        </td>
-                                        <td className="p-2.5 text-center">
-                                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-800">
-                                            Đã nhập hàng
-                                          </span>
-                                        </td>
-                                      </tr>
-                                    ) : (
-                                      <tr>
-                                        <td colSpan={5} className="text-center py-6 text-gray-400 italic">
-                                          Chưa có lịch sử nhập/trả hàng đối với nhà cung cấp này.
-                                        </td>
-                                      </tr>
-                                    )}
-                                  </tbody>
-                                </table>
-                              </div>
-                            )}
+                            {supplierDetailTab === 'history' && (() => {
+                              const matchedPurchases = purchases.filter(
+                                (p) =>
+                                  (p.supplierName && p.supplierName.toLowerCase() === s.name.toLowerCase()) ||
+                                  (p.supplierName && s.name && p.supplierName.toLowerCase().includes(s.name.toLowerCase())) ||
+                                  (s.code && p.code && p.code.includes(s.code))
+                              );
 
-                            {supplierDetailTab === 'debt' && (
-                              <div className="p-4 bg-white">
-                                <table className="w-full text-left text-xs border border-gray-200">
-                                  <thead className="bg-gray-50 text-gray-600 font-bold border-b border-gray-200">
-                                    <tr>
-                                      <th className="p-2.5">Mã chứng từ</th>
-                                      <th className="p-2.5">Thời gian</th>
-                                      <th className="p-2.5">Loại</th>
-                                      <th className="p-2.5 text-right">Giá trị (VNĐ)</th>
-                                      <th className="p-2.5 text-right">Nợ cần trả (VNĐ)</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody className="divide-y divide-gray-100">
-                                    {s.currentDebt > 0 ? (
-                                      <tr className="hover:bg-gray-50">
-                                        <td className="p-2.5 font-mono text-blue-600 font-bold">
-                                          PN0000{String((s.id.charCodeAt(0) % 90) + 10)}
-                                        </td>
-                                        <td className="p-2.5 font-mono text-gray-600">27/06/2026 10:30</td>
-                                        <td className="p-2.5 text-gray-800 font-medium">Phiếu nhập hàng chưa thanh toán đủ</td>
-                                        <td className="p-2.5 text-right font-mono font-bold text-gray-900">
-                                          {(s.totalPurchased || 0).toLocaleString('vi-VN')}đ
-                                        </td>
-                                        <td className="p-2.5 text-right font-mono font-extrabold text-red-600">
-                                          {(s.currentDebt || 0).toLocaleString('vi-VN')}đ
-                                        </td>
-                                      </tr>
-                                    ) : (
+                              return (
+                                <div className="p-4 bg-white">
+                                  <table className="w-full text-left text-xs border border-gray-200">
+                                    <thead className="bg-gray-50 text-gray-600 font-bold border-b border-gray-200">
                                       <tr>
-                                        <td colSpan={5} className="text-center py-6 text-gray-400 italic">
-                                          Không có nợ cần trả đối với nhà cung cấp này.
-                                        </td>
+                                        <th className="p-2.5">Mã phiếu</th>
+                                        <th className="p-2.5">Thời gian</th>
+                                        <th className="p-2.5">Người tạo</th>
+                                        <th className="p-2.5 text-right">Tổng tiền (VNĐ)</th>
+                                        <th className="p-2.5 text-right">Đã thanh toán (VNĐ)</th>
+                                        <th className="p-2.5 text-center">Trạng thái</th>
                                       </tr>
-                                    )}
-                                  </tbody>
-                                </table>
-                              </div>
-                            )}
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100">
+                                      {matchedPurchases.length > 0 ? (
+                                        matchedPurchases.map((p) => (
+                                          <tr key={p.id} className="hover:bg-gray-50">
+                                            <td className="p-2.5 font-mono text-blue-600 font-bold">
+                                              {p.code}
+                                            </td>
+                                            <td className="p-2.5 font-mono text-gray-600">{p.date}</td>
+                                            <td className="p-2.5 text-gray-800 font-medium">{p.creator || 'Chống Thấm 36'}</td>
+                                            <td className="p-2.5 text-right font-mono font-bold text-gray-900">
+                                              {(p.totalAmount || 0).toLocaleString('vi-VN')}đ
+                                            </td>
+                                            <td className="p-2.5 text-right font-mono font-medium text-emerald-700">
+                                              {(p.paidAmount || 0).toLocaleString('vi-VN')}đ
+                                            </td>
+                                            <td className="p-2.5 text-center">
+                                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                                p.status === 'Đã nhập hàng' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
+                                              }`}>
+                                                {p.status}
+                                              </span>
+                                            </td>
+                                          </tr>
+                                        ))
+                                      ) : s.totalPurchased > 0 ? (
+                                        <tr className="hover:bg-gray-50">
+                                          <td className="p-2.5 font-mono text-blue-600 font-bold">
+                                            PN0000{String((s.id.charCodeAt(0) % 90) + 10)}
+                                          </td>
+                                          <td className="p-2.5 font-mono text-gray-600">27/06/2026 10:30</td>
+                                          <td className="p-2.5 text-gray-800 font-medium">Chống Thấm 36</td>
+                                          <td className="p-2.5 text-right font-mono font-bold text-gray-900">
+                                            {(s.totalPurchased || 0).toLocaleString('vi-VN')}đ
+                                          </td>
+                                          <td className="p-2.5 text-right font-mono font-medium text-emerald-700">
+                                            {Math.max(0, (s.totalPurchased || 0) - (s.currentDebt || 0)).toLocaleString('vi-VN')}đ
+                                          </td>
+                                          <td className="p-2.5 text-center">
+                                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-800">
+                                              Đã nhập hàng
+                                            </span>
+                                          </td>
+                                        </tr>
+                                      ) : (
+                                        <tr>
+                                          <td colSpan={6} className="text-center py-6 text-gray-400 italic">
+                                            Chưa có lịch sử nhập/trả hàng đối với nhà cung cấp này.
+                                          </td>
+                                        </tr>
+                                      )}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              );
+                            })()}
+
+                            {supplierDetailTab === 'debt' && (() => {
+                              const matchedPurchases = purchases.filter(
+                                (p) =>
+                                  (p.supplierName && p.supplierName.toLowerCase() === s.name.toLowerCase()) ||
+                                  (p.supplierName && s.name && p.supplierName.toLowerCase().includes(s.name.toLowerCase())) ||
+                                  (s.code && p.code && p.code.includes(s.code))
+                              );
+
+                              const unpaidPurchases = matchedPurchases.filter(
+                                (p) => p.status === 'Đã nhập hàng' && (p.totalAmount - (p.paidAmount || 0)) > 0
+                              );
+
+                              return (
+                                <div className="p-4 bg-white space-y-3">
+                                  <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between text-xs">
+                                    <div>
+                                      <span className="font-bold text-red-900">Tổng nợ cần trả hiện tại: </span>
+                                      <span className="font-mono font-extrabold text-red-700 text-sm ml-1">
+                                        {(s.currentDebt || 0).toLocaleString('vi-VN')}đ
+                                      </span>
+                                    </div>
+                                    <span className="text-[11px] text-red-600 font-medium">
+                                      {s.currentDebt > 0 ? 'Đang có công nợ chưa thanh toán hết' : 'Đã thanh toán hết công nợ'}
+                                    </span>
+                                  </div>
+
+                                  <table className="w-full text-left text-xs border border-gray-200">
+                                    <thead className="bg-gray-50 text-gray-600 font-bold border-b border-gray-200">
+                                      <tr>
+                                        <th className="p-2.5">Mã chứng từ</th>
+                                        <th className="p-2.5">Thời gian</th>
+                                        <th className="p-2.5">Loại</th>
+                                        <th className="p-2.5 text-right">Giá trị (VNĐ)</th>
+                                        <th className="p-2.5 text-right">Đã trả (VNĐ)</th>
+                                        <th className="p-2.5 text-right">Nợ cần trả (VNĐ)</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100">
+                                      {unpaidPurchases.length > 0 ? (
+                                        unpaidPurchases.map((p) => {
+                                          const remaining = p.totalAmount - (p.paidAmount || 0);
+                                          return (
+                                            <tr key={p.id} className="hover:bg-gray-50">
+                                              <td className="p-2.5 font-mono text-blue-600 font-bold">{p.code}</td>
+                                              <td className="p-2.5 font-mono text-gray-600">{p.date}</td>
+                                              <td className="p-2.5 text-gray-800 font-medium">Phiếu nhập hàng chưa thanh toán đủ</td>
+                                              <td className="p-2.5 text-right font-mono font-bold text-gray-900">
+                                                {(p.totalAmount || 0).toLocaleString('vi-VN')}đ
+                                              </td>
+                                              <td className="p-2.5 text-right font-mono text-emerald-700 font-medium">
+                                                {(p.paidAmount || 0).toLocaleString('vi-VN')}đ
+                                              </td>
+                                              <td className="p-2.5 text-right font-mono font-extrabold text-red-600">
+                                                {remaining.toLocaleString('vi-VN')}đ
+                                              </td>
+                                            </tr>
+                                          );
+                                        })
+                                      ) : s.currentDebt > 0 ? (
+                                        <tr className="hover:bg-gray-50">
+                                          <td className="p-2.5 font-mono text-blue-600 font-bold">
+                                            PN0000{String((s.id.charCodeAt(0) % 90) + 10)}
+                                          </td>
+                                          <td className="p-2.5 font-mono text-gray-600">27/06/2026 10:30</td>
+                                          <td className="p-2.5 text-gray-800 font-medium">Phiếu nhập hàng chưa thanh toán đủ</td>
+                                          <td className="p-2.5 text-right font-mono font-bold text-gray-900">
+                                            {(s.totalPurchased || 0).toLocaleString('vi-VN')}đ
+                                          </td>
+                                          <td className="p-2.5 text-right font-mono text-emerald-700 font-medium">
+                                            {Math.max(0, (s.totalPurchased || 0) - (s.currentDebt || 0)).toLocaleString('vi-VN')}đ
+                                          </td>
+                                          <td className="p-2.5 text-right font-mono font-extrabold text-red-600">
+                                            {(s.currentDebt || 0).toLocaleString('vi-VN')}đ
+                                          </td>
+                                        </tr>
+                                      ) : (
+                                        <tr>
+                                          <td colSpan={6} className="text-center py-6 text-gray-400 italic">
+                                            Không có nợ cần trả đối với nhà cung cấp này.
+                                          </td>
+                                        </tr>
+                                      )}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              );
+                            })()}
                           </td>
                         </tr>
                       )}

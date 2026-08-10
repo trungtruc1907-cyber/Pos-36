@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Order, PurchaseOrder, ViewMode, Product, Supplier } from '../../types';
+import { Order, PurchaseOrder, ViewMode, Product, Supplier, PaymentMethod, Customer } from '../../types';
 import { parseDateToMillis } from '../../utils/dateUtils';
 import { Pagination } from '../Pagination';
 import { 
@@ -40,6 +40,7 @@ interface OrdersModalProps {
   purchases?: PurchaseOrder[];
   products?: Product[];
   suppliers?: Supplier[];
+  customers?: Customer[];
   currentView?: ViewMode;
   onSelectView?: (view: ViewMode) => void;
   onReprintOrder: (order: Order) => void;
@@ -58,6 +59,7 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
   purchases = [],
   products = [],
   suppliers = [],
+  customers = [],
   currentView = 'orders',
   onSelectView,
   onReprintOrder,
@@ -83,6 +85,7 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
 
   // Quick Add Product Modal State
   const [showQuickAddProdModal, setShowQuickAddProdModal] = useState<boolean>(false);
+  const [quickCreatedProducts, setQuickCreatedProducts] = useState<Product[]>([]);
   const [quickProdName, setQuickProdName] = useState<string>('');
   const [quickProdCode, setQuickProdCode] = useState<string>('');
   const [quickProdUnit, setQuickProdUnit] = useState<string>('bao');
@@ -102,7 +105,7 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
   const [quickSuppNote, setQuickSuppNote] = useState<string>('');
 
   // New Purchase Form local state
-  const [newSupplier, setNewSupplier] = useState<string>('Khang Hân (Hồng)');
+  const [newSupplier, setNewSupplier] = useState<string>('');
   const [selectedSupplierCode, setSelectedSupplierCode] = useState<string>('');
   const [newPurchaseCode, setNewPurchaseCode] = useState<string>('');
   const [newOrderCode, setNewOrderCode] = useState<string>('');
@@ -127,6 +130,156 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
   const [prodSearchKey, setProdSearchKey] = useState<string>('');
   const [showProdDropdown, setShowProdDropdown] = useState<boolean>(false);
   const [showSuppDropdown, setShowSuppDropdown] = useState<boolean>(false);
+
+  // Edit Order Modal local state
+  const [editingOrder, setEditingOrder] = useState<Order | null>(null);
+  const [showEditOrderModal, setShowEditOrderModal] = useState<boolean>(false);
+  const [editOrderCode, setEditOrderCode] = useState<string>('');
+  const [editOrderCustomerName, setEditOrderCustomerName] = useState<string>('');
+  const [editOrderCustomerCode, setEditOrderCustomerCode] = useState<string>('');
+  const [editOrderDate, setEditOrderDate] = useState<string>('');
+  const [editOrderItems, setEditOrderItems] = useState<
+    {
+      product: Product;
+      quantity: number;
+      unitPrice: number;
+      note?: string;
+    }[]
+  >([]);
+  const [editOrderDiscount, setEditOrderDiscount] = useState<number>(0);
+  const [editOrderSurcharge, setEditOrderSurcharge] = useState<number>(0);
+  const [editOrderAmountPaid, setEditOrderAmountPaid] = useState<number>(0);
+  const [editOrderPaymentMethod, setEditOrderPaymentMethod] = useState<PaymentMethod>('cash');
+  const [editOrderNote, setEditOrderNote] = useState<string>('');
+  const [editOrderStatus, setEditOrderStatus] = useState<'Đã thanh toán' | 'Đã hủy' | 'Trả hàng'>('Đã thanh toán');
+
+  const [orderProdSearchKey, setOrderProdSearchKey] = useState<string>('');
+  const [showOrderProdDropdown, setShowOrderProdDropdown] = useState<boolean>(false);
+  const [orderCustSearchKey, setOrderCustSearchKey] = useState<string>('');
+  const [showOrderCustDropdown, setShowOrderCustDropdown] = useState<boolean>(false);
+
+  const handleOpenEditOrder = (ord: Order) => {
+    setEditingOrder(ord);
+    setEditOrderCode(ord.orderCode || '');
+    setEditOrderCustomerName(ord.customerName || 'Khách lẻ');
+    setEditOrderCustomerCode(ord.customerCode || 'KH000009');
+    setEditOrderDate(ord.date || '');
+
+    if (ord.items && ord.items.length > 0) {
+      setEditOrderItems(
+        ord.items.map((it) => {
+          const matchedProd = products.find(
+            (p) => p.code === it.product?.code || p.id === it.product?.id || p.name === it.product?.name
+          );
+          return {
+            product: it.product || matchedProd || {
+              id: `prod-${Date.now()}`,
+              code: 'SP001',
+              name: 'Sản phẩm vật tư',
+              price: it.unitPrice || 100000,
+              costPrice: 80000,
+              stock: 100,
+              unit: 'cái',
+              category: 'Chung'
+            },
+            quantity: it.quantity || 1,
+            unitPrice: it.unitPrice || 0,
+            note: it.note || ''
+          };
+        })
+      );
+    } else {
+      setEditOrderItems([]);
+    }
+
+    setEditOrderDiscount(ord.discount || 0);
+    setEditOrderSurcharge(ord.surcharge || 0);
+    setEditOrderAmountPaid(ord.amountPaid !== undefined ? ord.amountPaid : (ord.totalAmount || 0));
+    setEditOrderPaymentMethod(ord.paymentMethod || 'cash');
+    setEditOrderNote(ord.note || '');
+    setEditOrderStatus(ord.status || 'Đã thanh toán');
+
+    setShowEditOrderModal(true);
+  };
+
+  const handleSaveOrderEdits = () => {
+    if (!editingOrder) return;
+
+    if (editOrderItems.length === 0) {
+      alert('Vui lòng chọn ít nhất 1 sản phẩm cho hóa đơn!');
+      return;
+    }
+
+    const subtotal = editOrderItems.reduce(
+      (sum, item) => sum + item.quantity * item.unitPrice,
+      0
+    );
+    const totalAmount = Math.max(0, subtotal - editOrderDiscount + editOrderSurcharge);
+    const itemsCount = editOrderItems.reduce((sum, item) => sum + item.quantity, 0);
+
+    const updatedOrderData: Partial<Order> = {
+      orderCode: editOrderCode,
+      customerName: editOrderCustomerName,
+      customerCode: editOrderCustomerCode,
+      date: editOrderDate,
+      items: editOrderItems,
+      subtotal,
+      discount: editOrderDiscount,
+      surcharge: editOrderSurcharge,
+      totalAmount,
+      amountPaid: editOrderAmountPaid,
+      itemsCount,
+      paymentMethod: editOrderPaymentMethod,
+      status: editOrderStatus,
+      note: editOrderNote,
+    };
+
+    // Calculate stock changes if onUpdateProduct is provided
+    if (onUpdateProduct) {
+      const oldQtyMap: Record<string, number> = {};
+      if (editingOrder.items) {
+        editingOrder.items.forEach((it) => {
+          const code = it.product?.code || it.product?.id;
+          if (code) {
+            oldQtyMap[code] = (oldQtyMap[code] || 0) + (Number(it.quantity) || 0);
+          }
+        });
+      }
+
+      const newQtyMap: Record<string, number> = {};
+      editOrderItems.forEach((it) => {
+        const code = it.product?.code || it.product?.id;
+        if (code) {
+          newQtyMap[code] = (newQtyMap[code] || 0) + (Number(it.quantity) || 0);
+        }
+      });
+
+      const allProductCodes = Array.from(new Set([...Object.keys(oldQtyMap), ...Object.keys(newQtyMap)]));
+
+      allProductCodes.forEach((code) => {
+        const oldQty = oldQtyMap[code] || 0;
+        const newQty = newQtyMap[code] || 0;
+        const deltaQty = newQty - oldQty;
+
+        if (deltaQty !== 0) {
+          const prod = products.find((p) => p.code === code || p.id === code);
+          if (prod) {
+            const currentStock = Number(prod.stock || 0);
+            const updatedStock = Math.max(0, currentStock - deltaQty);
+            onUpdateProduct({ ...prod, stock: updatedStock });
+          }
+        }
+      });
+    }
+
+    if (onUpdateOrder) {
+      onUpdateOrder(editingOrder.id, updatedOrderData);
+    }
+
+    alert(`Đã cập nhật thông tin hóa đơn ${editOrderCode} thành công!`);
+    setShowEditOrderModal(false);
+    setEditingOrder(null);
+  };
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -228,7 +381,7 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
   const handleOpenEditPurchase = (p: PurchaseOrder) => {
     setEditingPurchaseId(p.id);
     setNewPurchaseCode(p.code || '');
-    setNewSupplier(p.supplierName || 'Khang Hân (Hồng)');
+    setNewSupplier(p.supplierName || '');
 
     const matchedSupp = suppliers.find((s) => s.name === p.supplierName);
     setSelectedSupplierCode(matchedSupp ? matchedSupp.code : '');
@@ -341,42 +494,142 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
       }
     }
 
+    // 1. Automatically update product stock considering previous purchase state if editing
+    const existingP = editingPurchaseId ? purchases.find((p) => p.id === editingPurchaseId) : null;
+    const wasCompletedBefore = existingP && existingP.status === 'Đã nhập hàng';
+
+    // Combine prop products with quickCreatedProducts for safe lookup
+    const combinedProducts = [...products];
+    quickCreatedProducts.forEach((qp) => {
+      if (!combinedProducts.some((p) => p.id === qp.id || p.code === qp.code)) {
+        combinedProducts.push(qp);
+      }
+    });
+
+    const oldQtyMap: Record<string, number> = {};
+    if (wasCompletedBefore && existingP?.items) {
+      existingP.items.forEach((it) => {
+        const matched = combinedProducts.find(
+          (p) =>
+            p.code === it.productCode ||
+            p.id === it.productCode ||
+            (p.name && it.productName && p.name.toLowerCase() === it.productName.toLowerCase())
+        );
+        const code = matched?.code || it.productCode;
+        if (code) {
+          oldQtyMap[code] = (oldQtyMap[code] || 0) + (Number(it.quantity) || 0);
+        }
+      });
+    }
+
+    const newQtyMap: Record<string, number> = {};
     if (status === 'Đã nhập hàng') {
-      // 1. Automatically update product stock
-      for (const item of newPurchaseItems) {
-        const prod = products.find(
-          (p) => p.code === item.productCode || p.id === item.productCode
+      newPurchaseItems.forEach((it) => {
+        const matched = combinedProducts.find(
+          (p) =>
+            p.code === it.productCode ||
+            (p.name && it.productName && p.name.toLowerCase() === it.productName.toLowerCase())
+        );
+        const code = matched?.code || it.productCode;
+        if (code) {
+          newQtyMap[code] = (newQtyMap[code] || 0) + (Number(it.quantity) || 0);
+        }
+      });
+    }
+
+    const allProductCodes = Array.from(new Set([...Object.keys(oldQtyMap), ...Object.keys(newQtyMap)]));
+
+    allProductCodes.forEach((code) => {
+      const oldQty = oldQtyMap[code] || 0;
+      const newQty = newQtyMap[code] || 0;
+      const deltaQty = newQty - oldQty;
+
+      if (deltaQty !== 0 || status === 'Đã nhập hàng') {
+        const prod = combinedProducts.find(
+          (p) =>
+            p.code === code ||
+            p.id === code ||
+            (p.name && code && p.name.toLowerCase() === code.toLowerCase())
         );
         if (prod && onUpdateProduct) {
-          const newStock = Number(prod.stock || 0) + Number(item.quantity || 0);
+          const currentStock = Number(prod.stock || 0);
+          const updatedStock = Math.max(0, currentStock + deltaQty);
+          const newItem = newPurchaseItems.find(
+            (it) => it.productCode === code || (it.productName && prod.name && it.productName.toLowerCase() === prod.name.toLowerCase())
+          );
+          const newCostPrice = (newItem && newItem.unitPrice) ? newItem.unitPrice : prod.costPrice;
+
           onUpdateProduct({
             ...prod,
-            stock: newStock,
-            costPrice: item.unitPrice || prod.costPrice,
+            stock: updatedStock,
+            costPrice: newCostPrice,
+          });
+        }
+      }
+    });
+
+    // 2. Automatically update supplier debt & total purchased
+      const remainingDebt = Math.max(0, calculatedNetTotal - paidVal);
+      const currentSupplierName = newSupplier.trim();
+      const oldSupplierName = existingP?.supplierName?.trim() || '';
+
+      const isSupplierChanged =
+        !!existingP &&
+        !!oldSupplierName &&
+        !!currentSupplierName &&
+        oldSupplierName.toLowerCase() !== currentSupplierName.toLowerCase();
+
+      const oldTotal = (existingP && existingP.status === 'Đã nhập hàng') ? (existingP.totalAmount || 0) : 0;
+      const oldPaid = (existingP && existingP.status === 'Đã nhập hàng') ? (existingP.paidAmount || 0) : 0;
+      const oldDebt = Math.max(0, oldTotal - oldPaid);
+
+      if (isSupplierChanged && existingP.status === 'Đã nhập hàng') {
+        // Find old supplier and cancel/remove oldDebt and oldTotal from it
+        const oldSupp = suppliers.find(
+          (s) =>
+            s.name.toLowerCase() === oldSupplierName.toLowerCase() ||
+            (existingP.supplierCode && s.code === existingP.supplierCode)
+        );
+        if (oldSupp && onUpdateSupplier) {
+          const updatedOldDebt = Math.max(0, Number(oldSupp.currentDebt || 0) - oldDebt);
+          const updatedOldTotal = Math.max(0, Number(oldSupp.totalPurchased || 0) - oldTotal);
+          onUpdateSupplier(oldSupp.id, {
+            currentDebt: updatedOldDebt,
+            totalPurchased: updatedOldTotal,
           });
         }
       }
 
-      // 2. Automatically update supplier debt & total purchased
-      const remainingDebt = calculatedNetTotal - paidVal;
+      // Now calculate net debt and total to add to the new/current supplier
       const supp = suppliers.find(
         (s) =>
-          s.name.toLowerCase() === newSupplier.trim().toLowerCase() ||
+          s.name.toLowerCase() === currentSupplierName.toLowerCase() ||
           (selectedSupplierCode && s.code === selectedSupplierCode)
       );
 
+      let netDebtToAdd: number;
+      let netTotalToAdd: number;
+
+      if (isSupplierChanged) {
+        netDebtToAdd = status === 'Đã nhập hàng' ? remainingDebt : 0;
+        netTotalToAdd = status === 'Đã nhập hàng' ? calculatedNetTotal : 0;
+      } else {
+        netDebtToAdd = status === 'Đã nhập hàng' ? (remainingDebt - oldDebt) : -oldDebt;
+        netTotalToAdd = status === 'Đã nhập hàng' ? (calculatedNetTotal - oldTotal) : -oldTotal;
+      }
+
       if (supp && onUpdateSupplier) {
-        const updatedDebt = Number(supp.currentDebt || 0) + remainingDebt;
-        const updatedTotalPurchased = Number(supp.totalPurchased || 0) + calculatedNetTotal;
+        const updatedDebt = Math.max(0, Number(supp.currentDebt || 0) + netDebtToAdd);
+        const updatedTotalPurchased = Math.max(0, Number(supp.totalPurchased || 0) + netTotalToAdd);
         onUpdateSupplier(supp.id, {
           currentDebt: updatedDebt,
           totalPurchased: updatedTotalPurchased,
         });
-      } else if (onAddSupplier && newSupplier.trim()) {
+      } else if (onAddSupplier && currentSupplierName && status === 'Đã nhập hàng') {
         const suppCode = selectedSupplierCode || `NCC${Math.floor(100000 + Math.random() * 900000)}`;
         onAddSupplier({
           code: suppCode,
-          name: newSupplier.trim(),
+          name: currentSupplierName,
           phone: '',
           email: '',
           address: '',
@@ -385,7 +638,6 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
           totalPurchased: calculatedNetTotal,
         });
       }
-    }
 
     const wasEditing = !!editingPurchaseId;
     setEditingPurchaseId(null);
@@ -481,7 +733,7 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
       category: quickProdCategory || 'Chống thấm',
       price: sellP,
       costPrice: costP,
-      stock: qty,
+      stock: 0,
       loaiHang: 'Hàng hóa',
       dangKinhDoanh: 1,
       duocBanTrucTiep: 1,
@@ -490,6 +742,8 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
     if (onAddProduct) {
       onAddProduct(newProd);
     }
+
+    setQuickCreatedProducts((prev) => [...prev, newProd]);
 
     setNewPurchaseItems((prev) => [
       ...prev,
@@ -1159,14 +1413,42 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
                   </p>
                 </div>
 
-                <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 space-y-1">
+                <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 space-y-2">
                   <div className="flex items-center space-x-2 text-xs font-bold text-gray-900">
                     <Package className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span>2. Cập nhật Tồn kho Hàng hóa</span>
+                    <span>2. Cập nhật Tồn kho Hàng hóa ({newPurchaseItems.length} mặt hàng)</span>
                   </div>
-                  <p className="text-[11px] text-gray-600 pl-6">
-                    Tự động cộng dồn số lượng nhập kho cho <strong>{newPurchaseItems.length} mặt hàng</strong> và cập nhật giá vốn nhập mới tương ứng.
-                  </p>
+                  <div className="pl-6 space-y-1.5">
+                    <p className="text-[11px] text-gray-600">
+                      Số lượng tồn kho sẽ được kiểm tra và cộng dồn tự động vào kho hàng hóa:
+                    </p>
+                    <div className="max-h-36 overflow-y-auto border border-gray-200 rounded-lg bg-white divide-y divide-gray-100 text-[11px]">
+                      {newPurchaseItems.map((item, idx) => {
+                        const prod = products.find((p) => p.code === item.productCode || p.id === item.productCode);
+                        const currentStock = prod ? Number(prod.stock || 0) : 0;
+                        const qtyToAdd = Number(item.quantity || 0);
+                        const newStock = currentStock + qtyToAdd;
+                        return (
+                          <div key={idx} className="p-2 flex items-center justify-between hover:bg-gray-50">
+                            <div>
+                              <div className="font-semibold text-gray-900">{item.productName}</div>
+                              <div className="font-mono text-[10px] text-gray-500">{item.productCode}</div>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-gray-500">Tồn hiện tại: </span>
+                              <span className="font-mono font-medium text-gray-800">{currentStock}</span>
+                              <span className="mx-1.5 text-emerald-600 font-bold">→</span>
+                              <span className="text-gray-500">Tồn mới: </span>
+                              <span className="font-mono font-bold text-emerald-700">{newStock}</span>
+                              <span className="ml-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                +{qtyToAdd}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
 
                 <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 space-y-1">
@@ -1586,7 +1868,7 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
               onClick={() => {
                 setEditingPurchaseId(null);
                 setNewPurchaseCode(`PN${String(Math.floor(100000 + Math.random() * 900000))}`);
-                setNewSupplier('Khang Hân (Hồng)');
+                setNewSupplier('');
                 setSelectedSupplierCode('');
                 setNewNote('');
                 setNewDiscount(0);
@@ -1710,7 +1992,7 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
                                   <div className="flex items-center space-x-2">
                                     <span className="text-gray-500 w-20">Tên NCC:</span>
                                     <button type="button" className="font-semibold text-blue-600 hover:underline">
-                                      {p.supplierName || 'Khang Hân (Hồng)'}
+                                      {p.supplierName || 'Chưa chọn nhà cung cấp'}
                                     </button>
                                   </div>
                                 </div>
@@ -2117,7 +2399,14 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
                                     <div className="flex items-center space-x-3">
                                       <div className="flex items-center space-x-1 font-bold text-sm text-gray-900">
                                         <span>{ord.customerCode || 'KH000009'} - {ord.customerName}</span>
-                                        <Edit3 className="w-3.5 h-3.5 text-blue-600 cursor-pointer ml-1 hover:text-blue-800" />
+                                        <Edit3
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleOpenEditOrder(ord);
+                                          }}
+                                          className="w-3.5 h-3.5 text-blue-600 cursor-pointer ml-1 hover:text-blue-800"
+                                          title="Mở phiếu để chỉnh sửa thông tin"
+                                        />
                                       </div>
                                       <span className="font-mono text-gray-500 font-medium text-xs">{ord.orderCode}</span>
                                       <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
@@ -2309,38 +2598,60 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation();
+                                          handleOpenEditOrder(ord);
+                                        }}
+                                        className="flex items-center px-4 py-1.5 bg-[#0066ff] hover:bg-blue-700 text-white rounded text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                                        title="Mở phiếu để chỉnh sửa thông tin"
+                                      >
+                                        <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
+                                        Mở phiếu
+                                      </button>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleOpenEditOrder(ord);
+                                        }}
+                                        className="flex items-center px-3 py-1.5 border border-gray-300 rounded text-xs font-medium text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
+                                        title="Chỉnh sửa thông tin hóa đơn"
+                                      >
+                                        <Pencil className="w-3.5 h-3.5 mr-1 text-gray-500" />
+                                        Chỉnh sửa
+                                      </button>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
                                           const noteToSave = editingNotes[ord.id] !== undefined ? editingNotes[ord.id] : (ord.note || '');
                                           if (onUpdateOrder) {
                                             onUpdateOrder(ord.id, { note: noteToSave });
                                             alert(`Đã cập nhật ghi chú cho đơn hàng ${ord.orderCode}`);
                                           }
                                         }}
-                                        className="flex items-center px-4 py-1.5 bg-[#0066ff] hover:bg-blue-700 text-white rounded text-xs font-bold shadow-xs transition-colors"
+                                        className="flex items-center px-3 py-1.5 border border-gray-300 rounded text-xs font-medium text-gray-700 hover:bg-gray-100 transition-colors"
                                       >
-                                        <Save className="w-3.5 h-3.5 mr-1.5" />
+                                        <Save className="w-3.5 h-3.5 mr-1 text-gray-500" />
                                         Lưu ghi chú
-                                       </button>
-                                       <button
-                                         onClick={(e) => {
-                                           e.stopPropagation();
-                                           alert(`Tạo phiếu trả hàng cho đơn ${ord.orderCode}`);
-                                         }}
-                                         className="flex items-center px-3 py-1.5 border border-gray-300 rounded text-xs font-medium text-gray-700 hover:bg-gray-100 transition-colors"
-                                       >
-                                         <RotateCcw className="w-3.5 h-3.5 mr-1 text-gray-500" />
-                                         Trả hàng
-                                       </button>
-                                       <button
-                                         onClick={(e) => {
-                                           e.stopPropagation();
-                                           onReprintOrder(ord);
-                                         }}
-                                         className="flex items-center px-3 py-1.5 border border-gray-300 rounded text-xs font-medium text-gray-700 hover:bg-gray-100 transition-colors"
-                                       >
-                                         <Printer className="w-3.5 h-3.5 mr-1 text-gray-500" />
-                                         In
-                                       </button>
-                                     </div>
+                                      </button>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          alert(`Tạo phiếu trả hàng cho đơn ${ord.orderCode}`);
+                                        }}
+                                        className="flex items-center px-3 py-1.5 border border-gray-300 rounded text-xs font-medium text-gray-700 hover:bg-gray-100 transition-colors"
+                                      >
+                                        <RotateCcw className="w-3.5 h-3.5 mr-1 text-gray-500" />
+                                        Trả hàng
+                                      </button>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          onReprintOrder(ord);
+                                        }}
+                                        className="flex items-center px-3 py-1.5 border border-gray-300 rounded text-xs font-medium text-gray-700 hover:bg-gray-100 transition-colors"
+                                      >
+                                        <Printer className="w-3.5 h-3.5 mr-1 text-gray-500" />
+                                        In
+                                      </button>
+                                    </div>
                                   </div>
                                 </div>
                               )}
@@ -2402,6 +2713,399 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
           pageSizeOptions={[10, 20, 50, 100]}
         />
       </div>
+
+      {/* Edit Order Modal */}
+      {showEditOrderModal && editingOrder && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="bg-[#1e0b54] text-white px-6 py-4 flex items-center justify-between shrink-0">
+              <div className="flex items-center space-x-3">
+                <FileText className="w-6 h-6 text-indigo-300" />
+                <div>
+                  <h3 className="font-extrabold text-base tracking-wide flex items-center gap-2">
+                    <span>Chỉnh sửa Hóa đơn bán hàng</span>
+                    <span className="bg-indigo-900/60 text-indigo-200 px-2.5 py-0.5 rounded text-xs font-mono font-bold border border-indigo-400/30">
+                      {editOrderCode}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-indigo-200 mt-0.5">
+                    Cập nhật thông tin khách hàng, danh sách sản phẩm, giá bán và thanh toán
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowEditOrderModal(false);
+                  setEditingOrder(null);
+                }}
+                className="p-1.5 hover:bg-white/10 rounded-full transition-colors text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 overflow-y-auto space-y-5 flex-1 text-xs">
+              {/* Info Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-200">
+                {/* Customer Selection */}
+                <div className="relative">
+                  <label className="block text-gray-700 font-bold mb-1">Khách hàng</label>
+                  <div className="flex items-center border border-gray-300 rounded-lg bg-white px-2.5 py-1.5 focus-within:border-blue-600">
+                    <User className="w-3.5 h-3.5 text-gray-400 mr-1.5 shrink-0" />
+                    <input
+                      type="text"
+                      value={editOrderCustomerName}
+                      onChange={(e) => {
+                        setEditOrderCustomerName(e.target.value);
+                        setOrderCustSearchKey(e.target.value);
+                        setShowOrderCustDropdown(true);
+                      }}
+                      onFocus={() => setShowOrderCustDropdown(true)}
+                      placeholder="Nhập tên hoặc chọn khách..."
+                      className="w-full text-xs font-semibold text-gray-800 bg-transparent focus:outline-none"
+                    />
+                  </div>
+                  {showOrderCustDropdown && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto">
+                      {customers.map((c) => (
+                        <div
+                          key={c.id}
+                          onClick={() => {
+                            setEditOrderCustomerName(c.name);
+                            setEditOrderCustomerCode(c.code || 'KH000009');
+                            setShowOrderCustDropdown(false);
+                          }}
+                          className="p-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 flex justify-between items-center"
+                        >
+                          <span className="font-semibold text-gray-900">{c.name}</span>
+                          <span className="font-mono text-[10px] text-gray-500">{c.code}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Customer Code */}
+                <div>
+                  <label className="block text-gray-700 font-bold mb-1">Mã khách hàng</label>
+                  <input
+                    type="text"
+                    value={editOrderCustomerCode}
+                    onChange={(e) => setEditOrderCustomerCode(e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded-lg text-xs font-mono font-medium text-gray-800 bg-white"
+                  />
+                </div>
+
+                {/* Date & Time */}
+                <div>
+                  <label className="block text-gray-700 font-bold mb-1">Thời gian lập phiếu</label>
+                  <input
+                    type="text"
+                    value={editOrderDate}
+                    onChange={(e) => setEditOrderDate(e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded-lg text-xs font-mono text-gray-800 bg-white"
+                  />
+                </div>
+              </div>
+
+              {/* Product Search Bar */}
+              <div className="space-y-2">
+                <label className="block text-gray-800 font-bold text-xs">Sản phẩm / Vật tư trong hóa đơn</label>
+                <div className="relative">
+                  <div className="flex items-center border border-gray-300 rounded-lg bg-white px-3 py-2 focus-within:border-blue-600 focus-within:ring-1 focus-within:ring-blue-600">
+                    <Search className="w-4 h-4 text-gray-400 mr-2 shrink-0" />
+                    <input
+                      type="text"
+                      value={orderProdSearchKey}
+                      onChange={(e) => {
+                        setOrderProdSearchKey(e.target.value);
+                        setShowOrderProdDropdown(true);
+                      }}
+                      onFocus={() => setShowOrderProdDropdown(true)}
+                      placeholder="Tìm thêm sản phẩm vào hóa đơn (mã, tên)..."
+                      className="w-full text-xs text-gray-800 placeholder-gray-400 bg-transparent focus:outline-none"
+                    />
+                  </div>
+
+                  {showOrderProdDropdown && orderProdSearchKey && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-50 max-h-52 overflow-y-auto">
+                      {products
+                        .filter(
+                          (p) =>
+                            p.name.toLowerCase().includes(orderProdSearchKey.toLowerCase()) ||
+                            p.code.toLowerCase().includes(orderProdSearchKey.toLowerCase())
+                        )
+                        .map((p) => (
+                          <div
+                            key={p.id}
+                            onClick={() => {
+                              setEditOrderItems((prev) => {
+                                const existingIdx = prev.findIndex(
+                                  (it) => it.product.code === p.code || it.product.id === p.id
+                                );
+                                if (existingIdx > -1) {
+                                  const updated = [...prev];
+                                  updated[existingIdx].quantity += 1;
+                                  return updated;
+                                }
+                                return [
+                                  ...prev,
+                                  {
+                                    product: p,
+                                    quantity: 1,
+                                    unitPrice: p.price,
+                                  },
+                                ];
+                              });
+                              setOrderProdSearchKey('');
+                              setShowOrderProdDropdown(false);
+                            }}
+                            className="p-2.5 hover:bg-blue-50 cursor-pointer border-b border-gray-100 flex justify-between items-center"
+                          >
+                            <div>
+                              <span className="font-mono font-bold text-blue-600 mr-2">{p.code}</span>
+                              <span className="font-semibold text-gray-900">{p.name}</span>
+                            </div>
+                            <div className="text-right font-mono font-bold text-gray-800">
+                              {p.price.toLocaleString('vi-VN')}đ
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Product Items Table */}
+              <div className="border border-gray-200 rounded-xl overflow-hidden shadow-2xs">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="bg-gray-100 text-gray-700 font-bold border-b border-gray-200">
+                    <tr>
+                      <th className="p-2.5 border-r border-gray-200 text-center w-10">STT</th>
+                      <th className="p-2.5 border-r border-gray-200 min-w-[100px]">Mã hàng</th>
+                      <th className="p-2.5 border-r border-gray-200 min-w-[180px]">Tên sản phẩm</th>
+                      <th className="p-2.5 border-r border-gray-200 text-center w-16">ĐVT</th>
+                      <th className="p-2.5 border-r border-gray-200 text-center min-w-[100px]">Số lượng</th>
+                      <th className="p-2.5 border-r border-gray-200 text-right min-w-[110px]">Đơn giá (đ)</th>
+                      <th className="p-2.5 border-r border-gray-200 text-right min-w-[120px]">Thành tiền</th>
+                      <th className="p-2.5 text-center w-12">Xóa</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 bg-white">
+                    {editOrderItems.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="text-center py-6 text-gray-400 italic">
+                          Chưa có sản phẩm nào trong hóa đơn
+                        </td>
+                      </tr>
+                    ) : (
+                      editOrderItems.map((item, idx) => {
+                        const lineTotal = item.quantity * item.unitPrice;
+                        return (
+                          <tr key={idx} className="hover:bg-gray-50">
+                            <td className="p-2.5 border-r border-gray-100 text-center text-gray-500 font-mono">
+                              {idx + 1}
+                            </td>
+                            <td className="p-2.5 border-r border-gray-100 font-mono text-blue-600 font-bold">
+                              {item.product.code}
+                            </td>
+                            <td className="p-2.5 border-r border-gray-100 font-medium text-gray-900">
+                              {item.product.name}
+                            </td>
+                            <td className="p-2.5 border-r border-gray-100 text-center text-gray-600">
+                              {item.product.unit || 'cái'}
+                            </td>
+                            <td className="p-2 border-r border-gray-100 text-center">
+                              <div className="flex items-center justify-center space-x-1">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditOrderItems((prev) =>
+                                      prev.map((it, i) =>
+                                        i === idx
+                                          ? { ...it, quantity: Math.max(1, it.quantity - 1) }
+                                          : it
+                                      )
+                                    );
+                                  }}
+                                  className="w-6 h-6 border border-gray-300 rounded font-bold hover:bg-gray-100 flex items-center justify-center text-gray-700"
+                                >
+                                  -
+                                </button>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  value={item.quantity}
+                                  onChange={(e) => {
+                                    const val = Math.max(1, parseInt(e.target.value) || 1);
+                                    setEditOrderItems((prev) =>
+                                      prev.map((it, i) => (i === idx ? { ...it, quantity: val } : it))
+                                    );
+                                  }}
+                                  className="w-12 text-center border border-gray-300 rounded p-1 font-mono font-bold text-gray-800"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditOrderItems((prev) =>
+                                      prev.map((it, i) =>
+                                        i === idx ? { ...it, quantity: it.quantity + 1 } : it
+                                      )
+                                    );
+                                  }}
+                                  className="w-6 h-6 border border-gray-300 rounded font-bold hover:bg-gray-100 flex items-center justify-center text-gray-700"
+                                >
+                                  +
+                                </button>
+                              </div>
+                            </td>
+                            <td className="p-2 border-r border-gray-100">
+                              <input
+                                type="number"
+                                value={item.unitPrice}
+                                onChange={(e) => {
+                                  const val = Math.max(0, parseFloat(e.target.value) || 0);
+                                  setEditOrderItems((prev) =>
+                                    prev.map((it, i) => (i === idx ? { ...it, unitPrice: val } : it))
+                                  );
+                                }}
+                                className="w-full text-right border border-gray-300 rounded p-1 font-mono text-gray-800"
+                              />
+                            </td>
+                            <td className="p-2.5 border-r border-gray-100 text-right font-mono font-bold text-gray-900">
+                              {lineTotal.toLocaleString('vi-VN')}
+                            </td>
+                            <td className="p-2.5 text-center">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditOrderItems((prev) => prev.filter((_, i) => i !== idx));
+                                }}
+                                className="p-1 hover:bg-red-50 text-red-500 rounded transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5 mx-auto" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Bottom Note & Payment Math */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                <div>
+                  <label className="block text-gray-700 font-bold mb-1">Ghi chú hóa đơn</label>
+                  <textarea
+                    rows={4}
+                    value={editOrderNote}
+                    onChange={(e) => setEditOrderNote(e.target.value)}
+                    placeholder="Nhập ghi chú hóa đơn..."
+                    className="w-full p-2.5 border border-gray-300 rounded-lg text-xs text-gray-800 focus:outline-none focus:border-blue-600 bg-white shadow-2xs"
+                  />
+                </div>
+
+                <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-2.5">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-gray-600 font-medium">Tổng tiền hàng:</span>
+                    <span className="font-mono font-bold text-gray-900">
+                      {editOrderItems
+                        .reduce((sum, item) => sum + item.quantity * item.unitPrice, 0)
+                        .toLocaleString('vi-VN')}đ
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-gray-600 font-medium">Giảm giá:</span>
+                    <input
+                      type="number"
+                      value={editOrderDiscount}
+                      onChange={(e) => setEditOrderDiscount(Math.max(0, parseFloat(e.target.value) || 0))}
+                      className="w-28 text-right p-1 border border-gray-300 rounded font-mono text-gray-800 bg-white"
+                    />
+                  </div>
+
+                  <div className="flex justify-between items-center text-xs font-bold text-gray-900 pt-2 border-t border-gray-200">
+                    <span>Khách cần trả:</span>
+                    <span className="font-mono text-blue-700 text-sm">
+                      {Math.max(
+                        0,
+                        editOrderItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0) -
+                          editOrderDiscount +
+                          editOrderSurcharge
+                      ).toLocaleString('vi-VN')}đ
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-gray-600 font-medium">Khách đã trả:</span>
+                    <input
+                      type="number"
+                      value={editOrderAmountPaid}
+                      onChange={(e) => setEditOrderAmountPaid(Math.max(0, parseFloat(e.target.value) || 0))}
+                      className="w-28 text-right p-1 border border-gray-300 rounded font-mono font-bold text-gray-800 bg-white"
+                    />
+                  </div>
+
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-gray-600 font-medium">Hình thức thanh toán:</span>
+                    <select
+                      value={editOrderPaymentMethod}
+                      onChange={(e) => setEditOrderPaymentMethod(e.target.value as PaymentMethod)}
+                      className="p-1 border border-gray-300 rounded text-xs bg-white text-gray-800 font-medium"
+                    >
+                      <option value="cash">Tiền mặt</option>
+                      <option value="transfer">Chuyển khoản</option>
+                      <option value="card">Thẻ ngân hàng</option>
+                      <option value="wallet">Ví điện tử</option>
+                    </select>
+                  </div>
+
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-gray-600 font-medium">Trạng thái:</span>
+                    <select
+                      value={editOrderStatus}
+                      onChange={(e) => setEditOrderStatus(e.target.value as any)}
+                      className="p-1 border border-gray-300 rounded text-xs bg-white text-gray-800 font-semibold"
+                    >
+                      <option value="Đã thanh toán">Đã thanh toán</option>
+                      <option value="Trả hàng">Trả hàng</option>
+                      <option value="Đã hủy">Đã hủy</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="bg-gray-100 px-6 py-3 border-t border-gray-200 flex justify-end space-x-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowEditOrderModal(false);
+                  setEditingOrder(null);
+                }}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveOrderEdits}
+                className="px-5 py-2 bg-[#0066ff] hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-colors shadow-xs flex items-center space-x-1.5"
+              >
+                <Save className="w-4 h-4" />
+                <span>Lưu thay đổi</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

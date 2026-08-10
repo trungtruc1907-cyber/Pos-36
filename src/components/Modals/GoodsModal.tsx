@@ -154,39 +154,21 @@ function buildStockLedger(
     }
   });
 
-  // Baseline purchase receipts if no purchase matches yet
-  const codeNum = Number(p.code.replace(/\D/g, '')) || 100;
+  // Baseline stock entry if product has initial stock but no purchase receipts yet
   const hasImport = rawEntries.some((e) => e.categoryKey === 'import');
-  if (!hasImport) {
-    const baseImportQty = Math.max(10, Math.round(p.stock * 0.7) + 20);
+  if (!hasImport && p.stock > 0 && purchases.length === 0) {
     rawEntries.push({
-      id: `import-1-${p.id}`,
-      timestamp: new Date('2026-05-15T08:30:00').getTime(),
-      timeStr: '15/05/2026 08:30',
-      docCode: `PN000${(codeNum % 80) + 100}`,
-      docType: 'Nhập hàng',
-      categoryKey: 'import',
-      partner: 'Nhà cung cấp Việt Thái',
+      id: `import-init-${p.id}`,
+      timestamp: new Date('2026-01-01T08:00:00').getTime(),
+      timeStr: '01/01/2026 08:00',
+      docCode: `KK000001`,
+      docType: 'Kiểm kho',
+      categoryKey: 'check',
+      partner: 'Kho ban đầu',
       unitPrice: p.costPrice || Math.round(p.price * 0.8),
-      changeQty: baseImportQty,
-      note: 'Nhập kho hàng từ nhà cung cấp chính',
+      changeQty: p.stock,
+      note: 'Tồn kho ban đầu của hệ thống',
     });
-
-    if (p.stock > 15) {
-      const importQty2 = Math.round(p.stock * 0.4) + 5;
-      rawEntries.push({
-        id: `import-2-${p.id}`,
-        timestamp: new Date('2026-06-20T10:15:00').getTime(),
-        timeStr: '20/06/2026 10:15',
-        docCode: `PN000${(codeNum % 80) + 120}`,
-        docType: 'Nhập hàng',
-        categoryKey: 'import',
-        partner: 'Nhà cung cấp Sika Việt Nam',
-        unitPrice: p.costPrice || Math.round(p.price * 0.8),
-        changeQty: importQty2,
-        note: 'Nhập bổ sung kho tháng 6',
-      });
-    }
   }
 
   // 3. Stock Audits / Checks (Kiểm kho) - Only from actual stock check documents

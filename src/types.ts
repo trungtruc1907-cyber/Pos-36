@@ -102,6 +102,7 @@ export interface Order {
   customerName: string;       // Khách hàng (Khách lẻ...)
   subtotal: number;           // Tổng tiền hàng
   discount: number;           // Giảm giá
+  surcharge?: number;         // Thu khác / Phụ phí
   totalAmount: number;        // Tổng sau giảm giá
   amountPaid: number;         // Khách đã trả
   itemsCount: number;         // Số lượng
