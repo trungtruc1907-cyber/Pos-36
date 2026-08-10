@@ -25,7 +25,8 @@ import {
 import {
   subscribePurchases,
   addPurchase,
-  updatePurchase
+  updatePurchase,
+  deletePurchase
 } from './lib/purchasesService';
 import {
   subscribeStockChecks,
@@ -271,6 +272,16 @@ export default function App() {
     }
   };
 
+  const handleDeletePurchase = async (id: string) => {
+    try {
+      await deletePurchase(id);
+      setPurchases((prev) => prev.filter((p) => p.id !== id));
+    } catch (err) {
+      console.error('Failed to delete purchase order in Firestore:', err);
+      setPurchases((prev) => prev.filter((p) => p.id !== id));
+    }
+  };
+
   // Complete Order Checkout Handler
   const handleCompleteCheckout = async (checkoutData: {
     customerCode?: string;
@@ -504,6 +515,7 @@ export default function App() {
               onUpdateOrder={handleUpdateOrder}
               onAddPurchase={handleAddNewPurchase}
               onUpdatePurchase={handleUpdatePurchase}
+              onDeletePurchase={handleDeletePurchase}
               onAddProduct={handleAddNewProduct}
               onUpdateProduct={handleUpdateProduct}
               onAddSupplier={handleAddNewSupplier}

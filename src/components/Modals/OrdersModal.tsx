@@ -30,7 +30,9 @@ import {
   User,
   Info,
   X,
-  CreditCard
+  CreditCard,
+  Package,
+  ClipboardCheck
 } from 'lucide-react';
 
 interface OrdersModalProps {
@@ -44,6 +46,7 @@ interface OrdersModalProps {
   onUpdateOrder?: (id: string, updates: Partial<Order>) => void;
   onAddPurchase?: (purchase: PurchaseOrder) => void;
   onUpdatePurchase?: (id: string, updates: Partial<PurchaseOrder>) => void;
+  onDeletePurchase?: (id: string) => void;
   onAddProduct?: (product: Product) => void;
   onUpdateProduct?: (product: Product) => void;
   onAddSupplier?: (supplier: Omit<Supplier, 'id'>) => void;
@@ -61,6 +64,7 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
   onUpdateOrder,
   onAddPurchase,
   onUpdatePurchase,
+  onDeletePurchase,
   onAddProduct,
   onUpdateProduct,
   onAddSupplier,
@@ -75,6 +79,7 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
   const [showAddPurchaseTab, setShowAddPurchaseTab] = useState<boolean>(false);
   const [editingPurchaseId, setEditingPurchaseId] = useState<string | null>(null);
   const [showExitConfirm, setShowExitConfirm] = useState<boolean>(false);
+  const [showCompleteConfirmModal, setShowCompleteConfirmModal] = useState<boolean>(false);
 
   // Quick Add Product Modal State
   const [showQuickAddProdModal, setShowQuickAddProdModal] = useState<boolean>(false);
@@ -262,6 +267,16 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
       return;
     }
 
+    if (status === 'Đã nhập hàng') {
+      setShowCompleteConfirmModal(true);
+    } else {
+      executeSavePurchase('Phiếu tạm');
+    }
+  };
+
+  const executeSavePurchase = (status: 'Phiếu tạm' | 'Đã nhập hàng') => {
+    setShowCompleteConfirmModal(false);
+
     const code = newPurchaseCode.trim() || `PN${String(Math.floor(100000 + Math.random() * 900000))}`;
     const now = new Date();
     const dateFormatted = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
@@ -298,7 +313,10 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
 
     if (editingPurchaseId) {
       if (onUpdatePurchase) {
-        onUpdatePurchase(editingPurchaseId, purchasePayload);
+        onUpdatePurchase(editingPurchaseId, {
+          ...purchasePayload,
+          date: dateFormatted,
+        });
       } else if (onAddPurchase) {
         onAddPurchase({
           id: editingPurchaseId,
@@ -379,9 +397,10 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
     setNewNote('');
     setPaidToSupplier(0);
     setShowAddPurchaseTab(false);
+
     alert(
       wasEditing
-        ? `Đã cập nhật phiếu nhập ${code} thành công!`
+        ? `Đã hoàn thành! Phiếu nhập hàng gốc đã được xóa/ghi đè và thay thế thành công bằng thông tin phiếu ${code}. Tồn kho và công nợ đã được ghi nhận.`
         : status === 'Đã nhập hàng'
         ? `Đã hoàn thành phiếu nhập ${code}! Tồn kho hàng hóa và công nợ nhà cung cấp đã được tự động cập nhật.`
         : `Đã lưu tạm phiếu nhập ${code}!`
@@ -1085,6 +1104,121 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
                   className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-colors shadow-xs"
                 >
                   Đồng ý thoát
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Operational Business Impact Modal when Completing Purchase */}
+        {showCompleteConfirmModal && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-6 space-y-5 border border-gray-200 animate-in zoom-in-95">
+              {/* Header */}
+              <div className="flex items-center space-x-3 pb-3 border-b border-gray-100">
+                <div className="p-2.5 bg-emerald-100 text-emerald-700 rounded-xl">
+                  <CheckCircle2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-gray-900">
+                    Thông báo nghiệp vụ Hoàn thành nhập hàng
+                  </h3>
+                  <p className="text-xs text-gray-500 font-medium">
+                    Mã phiếu: <span className="font-mono font-bold text-blue-600">{newPurchaseCode}</span>
+                  </p>
+                </div>
+              </div>
+
+              {/* Info Notice Banner */}
+              <div className="p-3.5 bg-blue-50/80 border border-blue-200 rounded-xl text-xs text-blue-900 leading-relaxed font-medium flex items-start space-x-2.5">
+                <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                <div>
+                  {editingPurchaseId ? (
+                    <span>
+                      Quý khách đang <strong>sửa phiếu nhập hàng</strong>. Khi chọn <strong>[Xác nhận & Hoàn thành]</strong>, phiếu nhập hàng gốc sẽ được xóa đi và thay thế toàn bộ bằng thông tin phiếu mới sửa.
+                    </span>
+                  ) : (
+                    <span>
+                      Quý khách chuẩn bị <strong>hoàn thành phiếu nhập hàng</strong>. Hệ thống sẽ tự động thực hiện đồng bộ các nghiệp vụ kinh doanh dưới đây.
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Business Tasks List */}
+              <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
+                <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 space-y-1">
+                  <div className="flex items-center space-x-2 text-xs font-bold text-gray-900">
+                    <FileText className="w-4 h-4 text-indigo-600 shrink-0" />
+                    <span>1. Cập nhật & Ghi đè phiếu nhập hàng</span>
+                  </div>
+                  <p className="text-[11px] text-gray-600 pl-6">
+                    {editingPurchaseId
+                      ? `Phiếu nhập hàng gốc (${newPurchaseCode}) sẽ được xóa đi và thay thế bằng dữ liệu mới sửa (${newPurchaseItems.length} danh mục sản phẩm).`
+                      : `Khởi tạo chính thức phiếu nhập hàng mới (${newPurchaseCode}) với ${newPurchaseItems.length} danh mục sản phẩm.`}
+                  </p>
+                </div>
+
+                <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 space-y-1">
+                  <div className="flex items-center space-x-2 text-xs font-bold text-gray-900">
+                    <Package className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>2. Cập nhật Tồn kho Hàng hóa</span>
+                  </div>
+                  <p className="text-[11px] text-gray-600 pl-6">
+                    Tự động cộng dồn số lượng nhập kho cho <strong>{newPurchaseItems.length} mặt hàng</strong> và cập nhật giá vốn nhập mới tương ứng.
+                  </p>
+                </div>
+
+                <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 space-y-1">
+                  <div className="flex items-center space-x-2 text-xs font-bold text-gray-900">
+                    <CreditCard className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>3. Hạch toán Công nợ Nhà cung cấp ({newSupplier})</span>
+                  </div>
+                  <div className="text-[11px] text-gray-600 pl-6 space-y-0.5">
+                    {(() => {
+                      const totalVal = newPurchaseItems.reduce((s, i) => s + i.quantity * i.unitPrice - i.discount, 0);
+                      const disc = discountType === 'percent' ? (totalVal * newDiscount) / 100 : newDiscount;
+                      const net = Math.max(0, totalVal - disc);
+                      const paid = (typeof paidToSupplier === 'number' && !isNaN(paidToSupplier)) ? paidToSupplier : (parseFloat(paidToSupplier as string) || 0);
+                      const debt = Math.max(0, net - paid);
+                      return (
+                        <>
+                          <div>• Tổng tiền phải trả: <strong className="font-mono text-gray-900">{net.toLocaleString('vi-VN')} đ</strong></div>
+                          <div>• Đã thanh toán: <strong className="font-mono text-emerald-700">{paid.toLocaleString('vi-VN')} đ</strong></div>
+                          <div>• Ghi nhận nợ NCC: <strong className="font-mono text-blue-700">{debt.toLocaleString('vi-VN')} đ</strong></div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 space-y-1">
+                  <div className="flex items-center space-x-2 text-xs font-bold text-gray-900">
+                    <ClipboardCheck className="w-4 h-4 text-purple-600 shrink-0" />
+                    <span>4. Ghi Sổ kho & Sổ quỹ</span>
+                  </div>
+                  <p className="text-[11px] text-gray-600 pl-6">
+                    Tự động lưu vết biến động tồn kho và nhật ký giao dịch mua hàng theo thời gian thực.
+                  </p>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="flex justify-end items-center space-x-2 pt-3 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setShowCompleteConfirmModal(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="button"
+                  onClick={() => executeSavePurchase('Đã nhập hàng')}
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold transition-colors shadow-md flex items-center space-x-1.5 cursor-pointer"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>Xác nhận & Hoàn thành</span>
                 </button>
               </div>
             </div>
