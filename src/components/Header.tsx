@@ -25,7 +25,7 @@ import {
 
 interface HeaderProps {
   currentView: ViewMode;
-  onSelectView: (view: ViewMode) => void;
+  onSelectView: (view: ViewMode, subTab?: string) => void;
   onOpenPos: () => void;
   unreadNotifications: number;
 }
@@ -39,8 +39,8 @@ export const Header: React.FC<HeaderProps> = ({
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const handleSelect = (view: ViewMode) => {
-    onSelectView(view);
+  const handleSelect = (view: ViewMode, subTab?: string) => {
+    onSelectView(view, subTab);
     setActiveDropdown(null);
     setMobileMenuOpen(false);
   };
@@ -432,13 +432,13 @@ export const Header: React.FC<HeaderProps> = ({
                 {/* Column 1 */}
                 <div className="space-y-0.5">
                   <button
-                    onClick={() => handleSelect('reports')}
+                    onClick={() => handleSelect('reports', 'daily')}
                     className="w-full text-left text-xs font-medium text-gray-800 hover:text-[#1e0b54] hover:bg-indigo-50/70 px-2.5 py-1.5 rounded transition-colors block"
                   >
                     Cuối ngày
                   </button>
                   <button
-                    onClick={() => handleSelect('reports')}
+                    onClick={() => handleSelect('reports', 'sales')}
                     className="w-full text-left text-xs font-medium text-gray-800 hover:text-[#1e0b54] hover:bg-indigo-50/70 px-2.5 py-1.5 rounded transition-colors block"
                   >
                     Bán hàng
@@ -450,7 +450,7 @@ export const Header: React.FC<HeaderProps> = ({
                     Đặt hàng
                   </button>
                   <button
-                    onClick={() => handleSelect('reports')}
+                    onClick={() => handleSelect('reports', 'products')}
                     className="w-full text-left text-xs font-medium text-gray-800 hover:text-[#1e0b54] hover:bg-indigo-50/70 px-2.5 py-1.5 rounded transition-colors block"
                   >
                     Hàng hóa
@@ -466,7 +466,7 @@ export const Header: React.FC<HeaderProps> = ({
                 {/* Column 2 */}
                 <div className="space-y-0.5">
                   <button
-                    onClick={() => handleSelect('reports')}
+                    onClick={() => handleSelect('reports', 'suppliers')}
                     className="w-full text-left text-xs font-medium text-gray-800 hover:text-[#1e0b54] hover:bg-indigo-50/70 px-2.5 py-1.5 rounded transition-colors block"
                   >
                     Nhà cung cấp

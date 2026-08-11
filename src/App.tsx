@@ -43,11 +43,13 @@ import { GoodsModal } from './components/Modals/GoodsModal';
 import { OrdersModal } from './components/Modals/OrdersModal';
 import { CustomersModal } from './components/Modals/CustomersModal';
 import { CashbookModal } from './components/Modals/CashbookModal';
+import { DailyReportView } from './components/Reports/DailyReportView';
 import { InvoiceReceiptModal } from './components/Modals/InvoiceReceiptModal';
 import { QrPaymentModal } from './components/Modals/QrPaymentModal';
 
 export default function App() {
   const [currentView, setCurrentView] = useState<ViewMode>('dashboard');
+  const [reportSubTab, setReportSubTab] = useState<'daily' | 'sales' | 'products' | 'suppliers'>('suppliers');
 
   // Application Persistent State
   const [products, setProducts] = useState<Product[]>([]);
@@ -585,7 +587,12 @@ export default function App() {
         <div className="flex-1 flex flex-col min-h-screen">
           <Header
             currentView={currentView}
-            onSelectView={(v) => setCurrentView(v)}
+            onSelectView={(v, subTab) => {
+              setCurrentView(v);
+              if (subTab === 'daily' || subTab === 'sales' || subTab === 'products' || subTab === 'suppliers') {
+                setReportSubTab(subTab as any);
+              }
+            }}
             onOpenPos={() => setCurrentView('pos')}
             unreadNotifications={2}
           />
@@ -658,7 +665,20 @@ export default function App() {
             />
           )}
 
-          {(currentView === 'cashbook' || currentView === 'reports' || currentView === 'online' || currentView === 'tax') && (
+          {currentView === 'reports' && (
+            <DailyReportView
+              key={reportSubTab}
+              initialTab={reportSubTab}
+              orders={orders}
+              purchases={purchases}
+              debtPayments={debtPayments}
+              products={products}
+              customers={customers}
+              suppliers={suppliers}
+            />
+          )}
+
+          {(currentView === 'cashbook' || currentView === 'online' || currentView === 'tax') && (
             <CashbookModal todayRevenue={todayRevenue} orders={orders} purchases={purchases} debtPayments={debtPayments} />
           )}
         </div>
