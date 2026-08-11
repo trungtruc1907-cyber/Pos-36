@@ -785,8 +785,8 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
                                     </thead>
                                     <tbody className="divide-y divide-gray-100">
                                       {matchedPurchases.length > 0 ? (
-                                        matchedPurchases.map((p) => (
-                                          <tr key={p.id} className="hover:bg-gray-50">
+                                        matchedPurchases.map((p, pIdx) => (
+                                          <tr key={p.id ? `${p.id}-m-${pIdx}` : `mp-${pIdx}`} className="hover:bg-gray-50">
                                             <td className="p-2.5 font-mono text-blue-600 font-bold">
                                               {p.code}
                                             </td>
@@ -931,10 +931,10 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
                                     </thead>
                                     <tbody className="divide-y divide-gray-100">
                                       {unpaidPurchases.length > 0 ? (
-                                        unpaidPurchases.map((p) => {
+                                        unpaidPurchases.map((p, pIdx) => {
                                           const remaining = p.totalAmount - (p.paidAmount || 0);
                                           return (
-                                            <tr key={p.id} className="hover:bg-gray-50">
+                                            <tr key={p.id ? `${p.id}-u-${pIdx}` : `up-${pIdx}`} className="hover:bg-gray-50">
                                               <td className="p-2.5 font-mono text-blue-600 font-bold">{p.code}</td>
                                               <td className="p-2.5 font-mono text-gray-600">{p.date}</td>
                                               <td className="p-2.5 text-gray-800 font-medium">Phiếu nhập hàng chưa thanh toán đủ</td>
@@ -1297,9 +1297,9 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
                                       </thead>
                                       <tbody className="divide-y divide-gray-100">
                                         {customerInvoices.length > 0 ? (
-                                          customerInvoices.map((ord) => (
+                                          customerInvoices.map((ord, ordIdx) => (
                                             <tr
-                                              key={ord.id}
+                                              key={ord.id ? `${ord.id}-ci-${ordIdx}` : `ord-ci-${ordIdx}`}
                                               className="hover:bg-blue-50/50 cursor-pointer transition-colors"
                                               onClick={() => setSelectedOrderForDetail(ord)}
                                             >

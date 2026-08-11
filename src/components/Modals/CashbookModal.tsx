@@ -26,21 +26,51 @@ export const CashbookModal: React.FC<CashbookModalProps> = ({ orders = [], purch
   const [newTransDesc, setNewTransDesc] = useState('');
   const [newTransAmount, setNewTransAmount] = useState<number | string>('');
 
+  const isBankMethod = (method?: string) => {
+    if (!method) return false;
+    const m = method.toLowerCase();
+    return (
+      m === 'transfer' ||
+      m === 'card' ||
+      m === 'wallet' ||
+      m === 'qr' ||
+      m.includes('chuyển khoản') ||
+      m.includes('thẻ') ||
+      m.includes('ví')
+    );
+  };
+
+  const isCashMethod = (method?: string) => {
+    if (!method) return true;
+    const m = method.toLowerCase();
+    return m === 'cash' || m.includes('tiền mặt') || !isBankMethod(method);
+  };
+
   // Compute Cash In / Cash Out from orders & purchases + debt payments + custom transactions
+  const isReturnOrder = (o: Order) => o.status === 'Trả hàng' || o.orderCode.startsWith('HDTH') || o.orderCode.startsWith('TH');
+
   const cashInFromOrders = orders
-    .filter((o) => o.paymentMethod === 'Tiền mặt' && o.status !== 'Đã hủy' && (o.amountPaid || 0) > 0)
+    .filter((o) => isCashMethod(o.paymentMethod) && o.status !== 'Đã hủy' && !isReturnOrder(o) && (o.amountPaid || 0) > 0)
+    .reduce((sum, o) => sum + (o.amountPaid || 0), 0);
+
+  const cashOutFromOrderReturns = orders
+    .filter((o) => isCashMethod(o.paymentMethod) && o.status !== 'Đã hủy' && isReturnOrder(o) && (o.amountPaid || 0) > 0)
     .reduce((sum, o) => sum + (o.amountPaid || 0), 0);
 
   const cashInFromCustomerDebt = debtPayments
-    .filter((dp) => dp.type === 'customer_debt_pay' && dp.paymentMethod === 'Tiền mặt')
+    .filter((dp) => dp.type === 'customer_debt_pay' && isCashMethod(dp.paymentMethod))
     .reduce((sum, dp) => sum + (dp.amount || 0), 0);
 
+  const cashInFromPurchaseReturns = purchases
+    .filter((p) => (p.type === 'return' || p.code.startsWith('THN')) && p.status !== 'Phiếu tạm' && (p.paidAmount || 0) > 0)
+    .reduce((sum, p) => sum + (p.paidAmount || 0), 0);
+
   const cashOutFromPurchases = purchases
-    .filter((p) => p.status !== 'Phiếu tạm' && (p.paidAmount || 0) > 0)
+    .filter((p) => p.type !== 'return' && !p.code.startsWith('THN') && p.status !== 'Phiếu tạm' && (p.paidAmount || 0) > 0)
     .reduce((sum, p) => sum + (p.paidAmount || 0), 0);
 
   const cashOutFromSupplierDebt = debtPayments
-    .filter((dp) => dp.type === 'supplier_debt_pay' && dp.paymentMethod === 'Tiền mặt')
+    .filter((dp) => dp.type === 'supplier_debt_pay' && isCashMethod(dp.paymentMethod))
     .reduce((sum, dp) => sum + (dp.amount || 0), 0);
 
   const customCashIn = customTransactions
@@ -51,21 +81,25 @@ export const CashbookModal: React.FC<CashbookModalProps> = ({ orders = [], purch
     .filter((t) => t.method === 'Tiền mặt' && t.type === 'Chi')
     .reduce((sum, t) => sum + t.amount, 0);
 
-  const totalCashIn = cashInFromOrders + cashInFromCustomerDebt + customCashIn;
-  const totalCashOut = cashOutFromPurchases + cashOutFromSupplierDebt + customCashOut;
+  const totalCashIn = cashInFromOrders + cashInFromCustomerDebt + cashInFromPurchaseReturns + customCashIn;
+  const totalCashOut = cashOutFromPurchases + cashOutFromSupplierDebt + cashOutFromOrderReturns + customCashOut;
   const totalCash = totalCashIn - totalCashOut;
 
   // Compute Bank / Transfer In / Out
   const bankInFromOrders = orders
-    .filter((o) => (o.paymentMethod === 'Chuyển khoản' || o.paymentMethod === 'Thẻ') && o.status !== 'Đã hủy' && (o.amountPaid || 0) > 0)
+    .filter((o) => isBankMethod(o.paymentMethod) && o.status !== 'Đã hủy' && !isReturnOrder(o) && (o.amountPaid || 0) > 0)
+    .reduce((sum, o) => sum + (o.amountPaid || 0), 0);
+
+  const bankOutFromOrderReturns = orders
+    .filter((o) => isBankMethod(o.paymentMethod) && o.status !== 'Đã hủy' && isReturnOrder(o) && (o.amountPaid || 0) > 0)
     .reduce((sum, o) => sum + (o.amountPaid || 0), 0);
 
   const bankInFromCustomerDebt = debtPayments
-    .filter((dp) => dp.type === 'customer_debt_pay' && dp.paymentMethod !== 'Tiền mặt')
+    .filter((dp) => dp.type === 'customer_debt_pay' && isBankMethod(dp.paymentMethod))
     .reduce((sum, dp) => sum + (dp.amount || 0), 0);
 
   const bankOutFromSupplierDebt = debtPayments
-    .filter((dp) => dp.type === 'supplier_debt_pay' && dp.paymentMethod !== 'Tiền mặt')
+    .filter((dp) => dp.type === 'supplier_debt_pay' && isBankMethod(dp.paymentMethod))
     .reduce((sum, dp) => sum + (dp.amount || 0), 0);
 
   const customBankIn = customTransactions
@@ -77,7 +111,7 @@ export const CashbookModal: React.FC<CashbookModalProps> = ({ orders = [], purch
     .reduce((sum, t) => sum + t.amount, 0);
 
   const totalBankIn = bankInFromOrders + bankInFromCustomerDebt + customBankIn;
-  const totalBankOut = bankOutFromSupplierDebt + customBankOut;
+  const totalBankOut = bankOutFromSupplierDebt + bankOutFromOrderReturns + customBankOut;
   const totalBank = totalBankIn - totalBankOut;
 
   const totalFund = totalCash + totalBank;
@@ -85,17 +119,27 @@ export const CashbookModal: React.FC<CashbookModalProps> = ({ orders = [], purch
   // Build Transaction Lists
   const cashList: CustomTransaction[] = [
     ...orders
-      .filter((o) => o.paymentMethod === 'Tiền mặt' && o.status !== 'Đã hủy' && (o.amountPaid || 0) > 0)
+      .filter((o) => isCashMethod(o.paymentMethod) && o.status !== 'Đã hủy' && !isReturnOrder(o) && (o.amountPaid || 0) > 0)
       .map((o) => ({
         id: o.id,
         type: 'Thu' as const,
         method: 'Tiền mặt' as const,
-        description: `Thu tiền đơn ${o.orderCode} (${o.customerName})`,
+        description: `Thu tiền bán hàng đơn ${o.orderCode} (${o.customerName || 'Khách lẻ'})`,
+        date: o.date,
+        amount: o.amountPaid || 0,
+      })),
+    ...orders
+      .filter((o) => isCashMethod(o.paymentMethod) && o.status !== 'Đã hủy' && isReturnOrder(o) && (o.amountPaid || 0) > 0)
+      .map((o) => ({
+        id: o.id,
+        type: 'Chi' as const,
+        method: 'Tiền mặt' as const,
+        description: `Chi trả lại tiền cho KH: ${o.customerName || 'Khách lẻ'} (${o.orderCode})`,
         date: o.date,
         amount: o.amountPaid || 0,
       })),
     ...debtPayments
-      .filter((dp) => dp.type === 'customer_debt_pay' && dp.paymentMethod === 'Tiền mặt')
+      .filter((dp) => dp.type === 'customer_debt_pay' && isCashMethod(dp.paymentMethod))
       .map((dp) => ({
         id: dp.id,
         type: 'Thu' as const,
@@ -105,7 +149,17 @@ export const CashbookModal: React.FC<CashbookModalProps> = ({ orders = [], purch
         amount: dp.amount || 0,
       })),
     ...purchases
-      .filter((p) => p.status !== 'Phiếu tạm' && (p.paidAmount || 0) > 0)
+      .filter((p) => (p.type === 'return' || p.code.startsWith('THN')) && p.status !== 'Phiếu tạm' && (p.paidAmount || 0) > 0)
+      .map((p) => ({
+        id: p.id,
+        type: 'Thu' as const,
+        method: 'Tiền mặt' as const,
+        description: `Thu tiền hoàn trả hàng nhập ${p.code} (${p.supplierName})`,
+        date: p.date,
+        amount: p.paidAmount || 0,
+      })),
+    ...purchases
+      .filter((p) => p.type !== 'return' && !p.code.startsWith('THN') && p.status !== 'Phiếu tạm' && (p.paidAmount || 0) > 0)
       .map((p) => ({
         id: p.id,
         type: 'Chi' as const,
@@ -115,7 +169,7 @@ export const CashbookModal: React.FC<CashbookModalProps> = ({ orders = [], purch
         amount: p.paidAmount || 0,
       })),
     ...debtPayments
-      .filter((dp) => dp.type === 'supplier_debt_pay' && dp.paymentMethod === 'Tiền mặt')
+      .filter((dp) => dp.type === 'supplier_debt_pay' && isCashMethod(dp.paymentMethod))
       .map((dp) => ({
         id: dp.id,
         type: 'Chi' as const,
@@ -129,17 +183,27 @@ export const CashbookModal: React.FC<CashbookModalProps> = ({ orders = [], purch
 
   const bankList: CustomTransaction[] = [
     ...orders
-      .filter((o) => (o.paymentMethod === 'Chuyển khoản' || o.paymentMethod === 'Thẻ') && o.status !== 'Đã hủy' && (o.amountPaid || 0) > 0)
+      .filter((o) => isBankMethod(o.paymentMethod) && o.status !== 'Đã hủy' && !isReturnOrder(o) && (o.amountPaid || 0) > 0)
       .map((o) => ({
         id: o.id,
         type: 'Thu' as const,
         method: 'Chuyển khoản' as const,
-        description: `Thu CK đơn ${o.orderCode} (${o.customerName})`,
+        description: `Thu CK/Thẻ đơn ${o.orderCode} (${o.customerName || 'Khách lẻ'})`,
+        date: o.date,
+        amount: o.amountPaid || 0,
+      })),
+    ...orders
+      .filter((o) => isBankMethod(o.paymentMethod) && o.status !== 'Đã hủy' && isReturnOrder(o) && (o.amountPaid || 0) > 0)
+      .map((o) => ({
+        id: o.id,
+        type: 'Chi' as const,
+        method: 'Chuyển khoản' as const,
+        description: `Chi CK trả tiền hàng cho KH: ${o.customerName || 'Khách lẻ'} (${o.orderCode})`,
         date: o.date,
         amount: o.amountPaid || 0,
       })),
     ...debtPayments
-      .filter((dp) => dp.type === 'customer_debt_pay' && dp.paymentMethod !== 'Tiền mặt')
+      .filter((dp) => dp.type === 'customer_debt_pay' && isBankMethod(dp.paymentMethod))
       .map((dp) => ({
         id: dp.id,
         type: 'Thu' as const,
@@ -148,8 +212,18 @@ export const CashbookModal: React.FC<CashbookModalProps> = ({ orders = [], purch
         date: dp.date,
         amount: dp.amount || 0,
       })),
+    ...purchases
+      .filter((p) => (p.type === 'return' || p.code.startsWith('THN')) && p.status !== 'Phiếu tạm' && isBankMethod(p.paymentMethod) && (p.paidAmount || 0) > 0)
+      .map((p) => ({
+        id: p.id,
+        type: 'Thu' as const,
+        method: 'Chuyển khoản' as const,
+        description: `Thu CK hoàn trả hàng nhập ${p.code} (${p.supplierName})`,
+        date: p.date,
+        amount: p.paidAmount || 0,
+      })),
     ...debtPayments
-      .filter((dp) => dp.type === 'supplier_debt_pay' && dp.paymentMethod !== 'Tiền mặt')
+      .filter((dp) => dp.type === 'supplier_debt_pay' && isBankMethod(dp.paymentMethod))
       .map((dp) => ({
         id: dp.id,
         type: 'Chi' as const,
@@ -273,8 +347,8 @@ export const CashbookModal: React.FC<CashbookModalProps> = ({ orders = [], purch
               </div>
             ) : (
               <div className="divide-y divide-gray-100 text-xs">
-                {cashList.map((item) => (
-                  <div key={item.id} className="grid grid-cols-12 py-3 px-2 items-center hover:bg-gray-50/80 rounded-lg transition-colors">
+                {cashList.map((item, idx) => (
+                  <div key={item.id ? `${item.id}-cash-${idx}` : `cash-${idx}`} className="grid grid-cols-12 py-3 px-2 items-center hover:bg-gray-50/80 rounded-lg transition-colors">
                     <div className="col-span-2">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${item.type === 'Thu' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
                         {item.type === 'Thu' ? <ArrowDownLeft className="w-3 h-3 mr-0.5" /> : <ArrowUpRight className="w-3 h-3 mr-0.5" />}
@@ -320,8 +394,8 @@ export const CashbookModal: React.FC<CashbookModalProps> = ({ orders = [], purch
               </div>
             ) : (
               <div className="divide-y divide-gray-100 text-xs">
-                {bankList.map((item) => (
-                  <div key={item.id} className="grid grid-cols-12 py-3 px-2 items-center hover:bg-gray-50/80 rounded-lg transition-colors">
+                {bankList.map((item, idx) => (
+                  <div key={item.id ? `${item.id}-bank-${idx}` : `bank-${idx}`} className="grid grid-cols-12 py-3 px-2 items-center hover:bg-gray-50/80 rounded-lg transition-colors">
                     <div className="col-span-2">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${item.type === 'Thu' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
                         {item.type === 'Thu' ? <ArrowDownLeft className="w-3 h-3 mr-0.5" /> : <ArrowUpRight className="w-3 h-3 mr-0.5" />}

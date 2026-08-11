@@ -168,7 +168,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ activityLogs, onOpen
             </div>
           ) : (
             <div className="space-y-3 relative z-10">
-              {filteredLogs.map((log) => {
+              {filteredLogs.map((log, idx) => {
                 const isSale = log.type === 'sale';
                 const isReturn = log.type === 'return';
                 const isImport = log.type === 'import';
@@ -180,7 +180,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ activityLogs, onOpen
 
                 return (
                   <div
-                    key={log.id}
+                    key={log.id ? `${log.id}-log-${idx}` : `log-${idx}`}
                     onClick={() => {
                       if (isSale && code && onSelectOrder) {
                         onSelectOrder(code);

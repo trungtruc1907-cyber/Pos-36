@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Product, CartItem, Customer, PaymentMethod, InvoiceTab } from '../../types';
+import { Product, CartItem, Customer, PaymentMethod, InvoiceTab, Order } from '../../types';
 import { 
   Search, 
   Plus, 
@@ -22,12 +22,14 @@ import {
   CreditCard,
   Wallet,
   DollarSign,
-  Package
+  Package,
+  FileSearch
 } from 'lucide-react';
 
 interface PosViewProps {
   products: Product[];
   customers: Customer[];
+  orders?: Order[];
   onBackToDashboard: () => void;
   onCompleteCheckout: (orderData: {
     customerCode?: string;
@@ -40,6 +42,8 @@ interface PosViewProps {
     paymentMethod: PaymentMethod;
     totalAmount: number;
     note: string;
+    isReturn?: boolean;
+    originalOrderCode?: string;
   }) => void;
   onAddNewCustomer: (newCustomer: Customer) => void;
 }
@@ -47,6 +51,7 @@ interface PosViewProps {
 export const PosView: React.FC<PosViewProps> = ({
   products,
   customers,
+  orders = [],
   onBackToDashboard,
   onCompleteCheckout,
   onAddNewCustomer,
@@ -76,8 +81,10 @@ export const PosView: React.FC<PosViewProps> = ({
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
   const [showCatalogDrawer, setShowCatalogDrawer] = useState(false);
   const [selectedCatalogCategory, setSelectedCatalogCategory] = useState<string>('Tất cả');
-  const [posMode, setPosMode] = useState<'fast' | 'standard'>('fast');
+  const [posMode, setPosMode] = useState<'sale' | 'return'>('sale');
   const [mobileTab, setMobileTab] = useState<'cart' | 'checkout'>('cart');
+  const [showOrderSelectModal, setShowOrderSelectModal] = useState(false);
+  const [orderSearchQuery, setOrderSearchQuery] = useState('');
 
   // New Customer Form State
   const [newCustName, setNewCustName] = useState('');
@@ -304,12 +311,70 @@ export const PosView: React.FC<PosViewProps> = ({
       .slice(0, 5);
   }, [payableAmount]);
 
+  // Filter orders for Return Order Select Modal
+  const filteredOrdersToReturn = useMemo(() => {
+    const list = (orders || []).filter(
+      (o) => o.status !== 'Đã hủy' && o.status !== 'Trả hàng' && !o.orderCode.startsWith('HDTH')
+    );
+    if (!orderSearchQuery.trim()) return list;
+    const q = orderSearchQuery.toLowerCase();
+    return list.filter(
+      (o) =>
+        o.orderCode.toLowerCase().includes(q) ||
+        o.customerName.toLowerCase().includes(q) ||
+        (o.customerCode && o.customerCode.toLowerCase().includes(q))
+    );
+  }, [orders, orderSearchQuery]);
+
+  // Handle selecting an original order to return
+  const handleSelectOrderToReturn = (order: Order) => {
+    const returnCart: CartItem[] = (order.items || []).map((item) => {
+      const prod = products.find(
+        (p) => p.id === item.product?.id || p.code === item.product?.code || p.name === item.product?.name
+      ) || item.product || {
+        id: `p-ref-${Date.now()}`,
+        code: item.product?.code || 'SP000',
+        name: item.product?.name || 'Sản phẩm',
+        price: item.unitPrice,
+        unit: 'cái',
+        stock: 100,
+        category: 'Khác',
+      };
+
+      return {
+        product: prod,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+      };
+    });
+
+    const netPayable = order.totalAmount || 0;
+
+    updateActiveTab((tab) => ({
+      ...tab,
+      title: `Trả đơn ${order.orderCode}`,
+      cart: returnCart,
+      customerName: order.customerName || 'Khách lẻ',
+      customerCode: order.customerCode || 'KH000009',
+      discount: order.discount || 0,
+      isReturn: true,
+      originalOrderCode: order.orderCode,
+      note: `Trả hàng từ đơn bán gốc ${order.orderCode}`,
+      amountPaid: netPayable > 0 ? netPayable : 0,
+    }));
+
+    setPosMode('return');
+    setShowOrderSelectModal(false);
+  };
+
   // Final Checkout
   const handleCheckoutClick = () => {
     if (activeTab.cart.length === 0) {
-      alert('Vui lòng chọn ít nhất 1 sản phẩm để thanh toán!');
+      alert('Vui lòng chọn ít nhất 1 sản phẩm!');
       return;
     }
+
+    const isReturnMode = posMode === 'return' || Boolean(activeTab.isReturn);
 
     onCompleteCheckout({
       customerCode: activeTab.customerCode || 'KH000009',
@@ -322,6 +387,8 @@ export const PosView: React.FC<PosViewProps> = ({
       paymentMethod: activeTab.paymentMethod,
       totalAmount: payableAmount,
       note: activeTab.note,
+      isReturn: isReturnMode,
+      originalOrderCode: activeTab.originalOrderCode,
     });
 
     // Reset or close tab after payment
@@ -368,9 +435,9 @@ export const PosView: React.FC<PosViewProps> = ({
             {searchQuery && (
               <div className="absolute left-0 right-0 top-full mt-1 bg-white rounded-md shadow-2xl border border-gray-200 max-h-80 overflow-y-auto z-50 divide-y divide-gray-100">
                 {filteredProducts.length > 0 ? (
-                  filteredProducts.map((p) => (
+                  filteredProducts.map((p, idx) => (
                     <div
-                      key={p.id}
+                      key={p.id ? `${p.id}-fp-${idx}` : `fp-${idx}`}
                       onClick={() => handleAddToCart(p)}
                       className="p-2.5 hover:bg-indigo-50 cursor-pointer flex justify-between items-center transition-colors text-gray-900"
                     >
@@ -406,6 +473,15 @@ export const PosView: React.FC<PosViewProps> = ({
           >
             <Package className="w-4 h-4 mr-1 text-amber-400" />
             Danh mục
+          </button>
+
+          <button
+            onClick={() => setShowOrderSelectModal(true)}
+            className="hidden sm:flex items-center px-2.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-md text-xs font-bold transition-all shrink-0 shadow-sm cursor-pointer"
+            title="Chọn hóa đơn bán gốc để trả hàng"
+          >
+            <RotateCcw className="w-3.5 h-3.5 mr-1 text-white" />
+            <span>Chọn đơn bán để trả</span>
           </button>
 
           {/* Multiple Invoice Tabs */}
@@ -526,7 +602,7 @@ export const PosView: React.FC<PosViewProps> = ({
                     const itemTotal = item.quantity * item.unitPrice;
                     return (
                       <div
-                        key={item.product.id}
+                        key={item.product.id ? `${item.product.id}-cart-${index}` : `cart-${index}`}
                         className="grid grid-cols-[40px_1fr_65px_100px_110px_120px_40px] gap-2 items-center p-2.5 bg-white hover:bg-slate-50 rounded-md border border-gray-200/80 transition-colors group text-xs"
                       >
                         {/* STT */}
@@ -642,6 +718,28 @@ export const PosView: React.FC<PosViewProps> = ({
 
         {/* RIGHT PANEL: CHECKOUT & PAYMENT */}
         <section className={`w-full lg:w-[380px] xl:w-[420px] bg-white flex-col border-l border-gray-200 shrink-0 shadow-lg z-20 ${mobileTab === 'checkout' ? 'flex' : 'hidden lg:flex'}`}>
+          {/* Sales Return Banner */}
+          {(posMode === 'return' || activeTab.isReturn) && (
+            <div className="bg-amber-50 border-b border-amber-200 px-3 py-2 text-xs font-bold text-amber-900 flex items-center justify-between shrink-0">
+              <span className="flex items-center">
+                <RotateCcw className="w-4 h-4 mr-1.5 text-amber-600" />
+                CHẾ ĐỘ TRẢ HÀNG BÁN
+              </span>
+              {activeTab.originalOrderCode ? (
+                <span className="text-[10px] font-mono bg-amber-100 text-amber-900 px-2 py-0.5 rounded border border-amber-300">
+                  Đơn gốc: {activeTab.originalOrderCode}
+                </span>
+              ) : (
+                <button
+                  onClick={() => setShowOrderSelectModal(true)}
+                  className="text-[10px] bg-amber-600 text-white px-2 py-0.5 rounded hover:bg-amber-700 transition-colors font-bold cursor-pointer"
+                >
+                  Chọn đơn gốc
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Customer Selection & DateTime Header */}
           <div className="p-3 bg-slate-50 border-b border-gray-200 space-y-2.5 shrink-0">
             <div className="flex justify-between items-center text-xs">
@@ -669,9 +767,9 @@ export const PosView: React.FC<PosViewProps> = ({
                       />
                     </div>
                     <div className="max-h-48 overflow-y-auto divide-y divide-gray-100">
-                      {filteredCustomers.map((c) => (
+                      {filteredCustomers.map((c, idx) => (
                         <div
-                          key={c.id}
+                          key={c.id ? `${c.id}-fc-${idx}` : `fc-${idx}`}
                           onClick={() => {
                             updateActiveTab((tab) => ({
                               ...tab,
@@ -715,7 +813,7 @@ export const PosView: React.FC<PosViewProps> = ({
               {/* Tổng tiền hàng */}
               <div className="flex justify-between items-center">
                 <span className="font-medium text-gray-600">
-                  Tổng tiền hàng ({activeTab.cart.reduce((sum, i) => sum + i.quantity, 0)} sản phẩm)
+                  {posMode === 'return' || activeTab.isReturn ? 'Tổng tiền hàng trả' : 'Tổng tiền hàng'} ({activeTab.cart.reduce((sum, i) => sum + i.quantity, 0)} sản phẩm)
                 </span>
                 <span className="font-bold font-mono text-sm text-gray-900">
                   {(rawTotal || 0).toLocaleString('vi-VN')}đ
@@ -725,7 +823,9 @@ export const PosView: React.FC<PosViewProps> = ({
               {/* Giảm giá */}
               <div className="flex justify-between items-center">
                 <div className="flex flex-col">
-                  <span className="font-medium text-gray-600">Giảm giá</span>
+                  <span className="font-medium text-gray-600">
+                    {posMode === 'return' || activeTab.isReturn ? 'Khấu trừ / Giảm giá' : 'Giảm giá'}
+                  </span>
                   {activeTab.discountType === 'percent' && activeTab.discount > 0 && (
                     <span className="text-[10px] text-gray-500 font-mono">
                       ({(actualDiscount || 0).toLocaleString('vi-VN')}đ)
@@ -826,15 +926,19 @@ export const PosView: React.FC<PosViewProps> = ({
 
               {/* Khách cần trả (Net Payable) */}
               <div className="flex justify-between items-center pt-1">
-                <span className="text-sm font-extrabold text-gray-900">Khách cần trả</span>
-                <span className="text-xl font-black text-[#1e0b54] font-mono">
+                <span className="text-sm font-extrabold text-gray-900">
+                  {posMode === 'return' || activeTab.isReturn ? 'CẦN HOÀN TRẢ KHÁCH' : 'Khách cần trả'}
+                </span>
+                <span className={`text-xl font-black font-mono ${posMode === 'return' || activeTab.isReturn ? 'text-amber-700' : 'text-[#1e0b54]'}`}>
                   {(payableAmount || 0).toLocaleString('vi-VN')}đ
                 </span>
               </div>
 
               {/* Khách thanh toán */}
               <div className="flex justify-between items-center pt-2">
-                <span className="font-bold text-gray-800">Khách thanh toán</span>
+                <span className="font-bold text-gray-800">
+                  {posMode === 'return' || activeTab.isReturn ? 'Tiền thực tế trả khách' : 'Khách thanh toán'}
+                </span>
                 <div className="flex items-center">
                   <input
                     type="number"
@@ -845,23 +949,27 @@ export const PosView: React.FC<PosViewProps> = ({
                         amountPaid: parseFloat(e.target.value) || 0,
                       }))
                     }
-                    className="w-32 text-right font-black text-base font-mono text-emerald-700 border-b-2 border-emerald-500 focus:outline-none p-0.5"
+                    className={`w-32 text-right font-black text-base font-mono border-b-2 focus:outline-none p-0.5 ${
+                      posMode === 'return' || activeTab.isReturn
+                        ? 'text-amber-700 border-amber-500'
+                        : 'text-emerald-700 border-emerald-500'
+                    }`}
                   />
-                  <span className="ml-1 font-bold text-emerald-700">đ</span>
+                  <span className={`ml-1 font-bold ${posMode === 'return' || activeTab.isReturn ? 'text-amber-700' : 'text-emerald-700'}`}>đ</span>
                 </div>
               </div>
 
               {/* Change return calculation */}
               {changeAmount >= 0 ? (
                 <div className="flex justify-between items-center text-xs text-emerald-600 font-semibold bg-emerald-50 p-2 rounded border border-emerald-100">
-                  <span>Tiền thừa trả khách:</span>
+                  <span>{posMode === 'return' || activeTab.isReturn ? 'Tiền khách trả lại:' : 'Tiền thừa trả khách:'}</span>
                   <span className="font-bold font-mono text-sm">
                     {(changeAmount || 0).toLocaleString('vi-VN')}đ
                   </span>
                 </div>
               ) : (
                 <div className="flex justify-between items-center text-xs text-amber-600 font-semibold bg-amber-50 p-2 rounded border border-amber-100">
-                  <span>Khách còn thiếu:</span>
+                  <span>{posMode === 'return' || activeTab.isReturn ? 'Nợ hoàn trả còn thiếu:' : 'Khách còn thiếu:'}</span>
                   <span className="font-bold font-mono text-sm">
                     {Math.abs(changeAmount || 0).toLocaleString('vi-VN')}đ
                   </span>
@@ -951,19 +1059,30 @@ export const PosView: React.FC<PosViewProps> = ({
               </div>
             </div>
 
-            {/* Big prominent THANH TOÁN Button */}
+            {/* Big prominent THANH TOÁN / TRẢ HÀNG Button */}
             <div className="pt-3">
               <button
                 onClick={handleCheckoutClick}
                 disabled={activeTab.cart.length === 0}
                 className={`w-full py-3.5 rounded-lg text-base font-extrabold uppercase tracking-wide flex items-center justify-center space-x-2 shadow-lg transition-all transform active:scale-98 ${
                   activeTab.cart.length > 0
-                    ? 'bg-[#1e0b54] hover:bg-[#15073c] text-white cursor-pointer shadow-indigo-900/30'
+                    ? posMode === 'return' || activeTab.isReturn
+                      ? 'bg-amber-600 hover:bg-amber-700 text-white cursor-pointer shadow-amber-900/30'
+                      : 'bg-[#1e0b54] hover:bg-[#15073c] text-white cursor-pointer shadow-indigo-900/30'
                     : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 }`}
               >
-                <CheckCircle2 className="w-5 h-5 text-amber-400" />
-                <span>THANH TOÁN</span>
+                {posMode === 'return' || activeTab.isReturn ? (
+                  <>
+                    <RotateCcw className="w-5 h-5 text-white" />
+                    <span>HOÀN TIỀN & XÁC NHẬN TRẢ HÀNG</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-5 h-5 text-amber-400" />
+                    <span>THANH TOÁN</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -975,26 +1094,32 @@ export const PosView: React.FC<PosViewProps> = ({
         <div className="flex items-center space-x-4">
           <div className="flex items-center space-x-1 border-r border-gray-300 pr-3">
             <button
-              onClick={() => setPosMode('fast')}
-              className={`px-2 py-0.5 rounded font-bold transition-colors ${
-                posMode === 'fast'
-                  ? 'bg-[#1e0b54] text-white'
+              onClick={() => {
+                setPosMode('sale');
+                updateActiveTab((tab) => ({ ...tab, isReturn: false }));
+              }}
+              className={`px-2.5 py-1 rounded font-bold text-xs transition-colors cursor-pointer ${
+                posMode === 'sale' && !activeTab.isReturn
+                  ? 'bg-[#1e0b54] text-white shadow-sm'
                   : 'text-gray-600 hover:bg-gray-200'
               }`}
             >
-              <Zap className="w-3 h-3 inline mr-1 text-amber-400" />
-              Bán nhanh
+              <Zap className="w-3.5 h-3.5 inline mr-1 text-amber-400" />
+              Bán hàng
             </button>
             <button
-              onClick={() => setPosMode('standard')}
-              className={`px-2 py-0.5 rounded font-bold transition-colors ${
-                posMode === 'standard'
-                  ? 'bg-[#1e0b54] text-white'
+              onClick={() => {
+                setPosMode('return');
+                updateActiveTab((tab) => ({ ...tab, isReturn: true }));
+              }}
+              className={`px-2.5 py-1 rounded font-bold text-xs transition-colors cursor-pointer ${
+                posMode === 'return' || activeTab.isReturn
+                  ? 'bg-amber-600 text-white shadow-sm'
                   : 'text-gray-600 hover:bg-gray-200'
               }`}
             >
-              <Clock className="w-3 h-3 inline mr-1 text-indigo-400" />
-              Bán thường
+              <RotateCcw className="w-3.5 h-3.5 inline mr-1 text-white" />
+              Trả hàng
             </button>
           </div>
 
@@ -1155,9 +1280,9 @@ export const PosView: React.FC<PosViewProps> = ({
                           </span>
                         </div>
                         <div className="grid grid-cols-1 gap-1.5">
-                          {catProducts.map((p) => (
+                          {catProducts.map((p, idx) => (
                           <div
-                            key={p.id}
+                            key={p.id ? `${p.id}-cp-${idx}` : `cp-${idx}`}
                             onClick={() => {
                               handleAddToCart(p);
                               setShowCatalogDrawer(false);
@@ -1190,6 +1315,95 @@ export const PosView: React.FC<PosViewProps> = ({
           </div>
         );
       })()}
+      {/* Modal Chọn Đơn Bán Gốc Để Trả Hàng */}
+      {showOrderSelectModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[85vh] overflow-hidden border border-gray-200">
+            {/* Modal Header */}
+            <div className="bg-[#1e0b54] text-white p-4 flex justify-between items-center shrink-0">
+              <div className="flex items-center space-x-2">
+                <RotateCcw className="w-5 h-5 text-amber-400" />
+                <h3 className="font-bold text-base">Chọn hóa đơn bán hàng để trả hàng</h3>
+              </div>
+              <button
+                onClick={() => setShowOrderSelectModal(false)}
+                className="text-gray-300 hover:text-white p-1 rounded-lg hover:bg-white/10"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Search Bar */}
+            <div className="p-3 bg-slate-50 border-b border-gray-200 flex items-center space-x-2 shrink-0">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  value={orderSearchQuery}
+                  onChange={(e) => setOrderSearchQuery(e.target.value)}
+                  placeholder="Tìm theo mã hóa đơn (HD009721...) hoặc tên khách hàng..."
+                  className="w-full pl-9 pr-3 py-2 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1e0b54] bg-white font-medium"
+                />
+              </div>
+            </div>
+
+            {/* Modal Orders List */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {filteredOrdersToReturn.length > 0 ? (
+                filteredOrdersToReturn.map((ord) => (
+                  <div
+                    key={ord.id || ord.orderCode}
+                    className="p-3.5 bg-white border border-gray-200 hover:border-amber-400 rounded-xl shadow-sm hover:shadow-md transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 group"
+                  >
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <span className="font-mono font-extrabold text-sm text-[#1e0b54]">
+                          {ord.orderCode}
+                        </span>
+                        <span className="text-[11px] text-gray-500 font-mono">
+                          {ord.date}
+                        </span>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          {ord.status || 'Đã thanh toán'}
+                        </span>
+                      </div>
+                      <div className="text-xs font-semibold text-gray-800 mt-1">
+                        Khách hàng: <span className="text-indigo-900">{ord.customerName}</span>
+                      </div>
+                      <div className="text-[11px] text-gray-500 mt-0.5">
+                        Số lượng: <span className="font-bold text-gray-700">{ord.itemsCount || ord.items?.length || 0} sản phẩm</span>
+                        {ord.note && <span className="ml-2 italic text-gray-400">- {ord.note}</span>}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between sm:justify-end space-x-4 shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0">
+                      <div className="text-right">
+                        <div className="text-xs text-gray-500">Tổng tiền bán</div>
+                        <div className="text-sm font-black text-[#1e0b54] font-mono">
+                          {(ord.totalAmount || 0).toLocaleString('vi-VN')}đ
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleSelectOrderToReturn(ord)}
+                        className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold flex items-center transition-all cursor-pointer shadow-sm group-hover:scale-105"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
+                        Chọn trả hàng
+                      </button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="py-12 text-center text-gray-400">
+                  <Package className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                  <p className="text-sm font-semibold text-gray-600">Không tìm thấy hóa đơn phù hợp</p>
+                  <p className="text-xs text-gray-400 mt-1">Nhập mã hóa đơn khác để tìm kiếm</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

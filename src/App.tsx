@@ -318,25 +318,50 @@ export default function App() {
 
   const handleDeletePurchase = async (id: string) => {
     const targetP = purchases.find((p) => p.id === id);
-    if (targetP && targetP.status === 'Đã nhập hàng') {
-      const pDebt = Math.max(0, (targetP.totalAmount || 0) - (targetP.paidAmount || 0));
-      const pTotal = targetP.totalAmount || 0;
+    if (targetP) {
+      const isReturn = targetP.type === 'return' || targetP.code?.startsWith('THN') || targetP.status === 'Đã trả hàng';
       const supp = suppliers.find((s) => s.name.toLowerCase() === targetP.supplierName?.toLowerCase());
-      if (supp) {
-        const newDebt = Math.max(0, (supp.currentDebt || 0) - pDebt);
-        const newTotal = Math.max(0, (supp.totalPurchased || 0) - pTotal);
-        handleUpdateSupplier(supp.id, { currentDebt: newDebt, totalPurchased: newTotal });
-      }
 
-      // Revert product stock for deleted completed purchase order
-      if (targetP.items && Array.isArray(targetP.items)) {
-        for (const item of targetP.items) {
-          const prod = products.find(
-            (p) => p.code === item.productCode || p.id === item.productCode
-          );
-          if (prod) {
-            const newStock = Math.max(0, Number(prod.stock || 0) - Number(item.quantity || 0));
-            handleUpdateProduct({ ...prod, stock: newStock });
+      if (isReturn && targetP.status === 'Đã trả hàng') {
+        // Deleting a completed purchase return -> ADD back returned stock & supplier debt
+        const pDebt = Math.max(0, (targetP.totalAmount || 0) - (targetP.paidAmount || 0));
+        const pTotal = targetP.totalAmount || 0;
+        if (supp) {
+          const newDebt = (supp.currentDebt || 0) + pDebt;
+          const newTotal = (supp.totalPurchased || 0) + pTotal;
+          handleUpdateSupplier(supp.id, { currentDebt: newDebt, totalPurchased: newTotal });
+        }
+
+        if (targetP.items && Array.isArray(targetP.items)) {
+          for (const item of targetP.items) {
+            const prod = products.find(
+              (p) => p.code === item.productCode || p.id === item.productCode
+            );
+            if (prod) {
+              const newStock = Number(prod.stock || 0) + Number(item.quantity || 0);
+              handleUpdateProduct({ ...prod, stock: newStock });
+            }
+          }
+        }
+      } else if (!isReturn && targetP.status === 'Đã nhập hàng') {
+        // Deleting a completed purchase import -> SUBTRACT imported stock & supplier debt
+        const pDebt = Math.max(0, (targetP.totalAmount || 0) - (targetP.paidAmount || 0));
+        const pTotal = targetP.totalAmount || 0;
+        if (supp) {
+          const newDebt = Math.max(0, (supp.currentDebt || 0) - pDebt);
+          const newTotal = Math.max(0, (supp.totalPurchased || 0) - pTotal);
+          handleUpdateSupplier(supp.id, { currentDebt: newDebt, totalPurchased: newTotal });
+        }
+
+        if (targetP.items && Array.isArray(targetP.items)) {
+          for (const item of targetP.items) {
+            const prod = products.find(
+              (p) => p.code === item.productCode || p.id === item.productCode
+            );
+            if (prod) {
+              const newStock = Math.max(0, Number(prod.stock || 0) - Number(item.quantity || 0));
+              handleUpdateProduct({ ...prod, stock: newStock });
+            }
           }
         }
       }
@@ -362,16 +387,22 @@ export default function App() {
     paymentMethod: PaymentMethod;
     totalAmount: number;
     note: string;
+    isReturn?: boolean;
+    originalOrderCode?: string;
   }) => {
     const now = new Date();
     const dateFormatted = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
     const nextSeq = 9722 + orders.length;
-    const orderCode = `HD${String(nextSeq).padStart(6, '0')}`;
+
+    const isReturn = Boolean(checkoutData.isReturn);
+    const orderCode = isReturn
+      ? `HDTH${String(nextSeq).padStart(6, '0')}`
+      : `HD${String(nextSeq).padStart(6, '0')}`;
 
     const newOrderData: Omit<Order, 'id'> = {
       orderCode,
       date: dateFormatted,
-      returnCode: '',
+      returnCode: isReturn ? (checkoutData.originalOrderCode || orderCode) : '',
       customerCode: checkoutData.customerCode || 'KH000009',
       customerName: checkoutData.customerName || 'Khách lẻ',
       subtotal: checkoutData.subtotal || checkoutData.totalAmount,
@@ -380,7 +411,7 @@ export default function App() {
       amountPaid: checkoutData.amountPaid,
       itemsCount: checkoutData.cart.reduce((sum, item) => sum + item.quantity, 0),
       paymentMethod: checkoutData.paymentMethod,
-      status: 'Đã thanh toán',
+      status: isReturn ? 'Trả hàng' : 'Đã thanh toán',
       items: checkoutData.cart,
       note: checkoutData.note,
     };
@@ -389,17 +420,18 @@ export default function App() {
       // 1. Save invoice/order to Firestore
       await addOrder(newOrderData);
 
-      // 2. Decrement stock for purchased products in Firestore
+      // 2. Adjust product stock
       for (const item of checkoutData.cart) {
         const prod = products.find((p) => p.id === item.product.id || p.code === item.product.code);
         if (prod) {
-          const newStock = Math.max(0, prod.stock - item.quantity);
+          const newStock = isReturn
+            ? Number(prod.stock || 0) + item.quantity
+            : Math.max(0, Number(prod.stock || 0) - item.quantity);
           await updateProduct(prod.id, { stock: newStock });
         }
       }
 
       // 3. Automatically update customer debt & stats in Firestore database
-      const unpaidDebt = Math.max(0, checkoutData.totalAmount - checkoutData.amountPaid);
       const targetCustomer = customers.find(
         (c) =>
           (checkoutData.customerCode && c.code === checkoutData.customerCode) ||
@@ -408,10 +440,22 @@ export default function App() {
       );
 
       if (targetCustomer) {
-        const updatedDebt = (targetCustomer.debt || 0) + unpaidDebt;
-        const updatedTotalSpent = (targetCustomer.totalSpent || 0) + checkoutData.totalAmount;
-        const updatedOrderCount = (targetCustomer.orderCount || 0) + 1;
-        const updatedPoints = (targetCustomer.points || 0) + Math.floor(checkoutData.totalAmount / 100000);
+        let updatedDebt = targetCustomer.debt || 0;
+        let updatedTotalSpent = targetCustomer.totalSpent || 0;
+        const updatedOrderCount = (targetCustomer.orderCount || 0) + (isReturn ? 0 : 1);
+        let updatedPoints = targetCustomer.points || 0;
+
+        if (isReturn) {
+          const unpaidRefundDeductDebt = Math.max(0, checkoutData.totalAmount - checkoutData.amountPaid);
+          updatedDebt = Math.max(0, (targetCustomer.debt || 0) - unpaidRefundDeductDebt);
+          updatedTotalSpent = Math.max(0, (targetCustomer.totalSpent || 0) - checkoutData.totalAmount);
+          updatedPoints = Math.max(0, (targetCustomer.points || 0) - Math.floor(checkoutData.totalAmount / 100000));
+        } else {
+          const unpaidDebt = Math.max(0, checkoutData.totalAmount - checkoutData.amountPaid);
+          updatedDebt = (targetCustomer.debt || 0) + unpaidDebt;
+          updatedTotalSpent = (targetCustomer.totalSpent || 0) + checkoutData.totalAmount;
+          updatedPoints = (targetCustomer.points || 0) + Math.floor(checkoutData.totalAmount / 100000);
+        }
 
         await updateCustomer(targetCustomer.id, {
           debt: updatedDebt,
@@ -434,8 +478,9 @@ export default function App() {
               : c
           )
         );
-      } else if (checkoutData.customerName && checkoutData.customerName !== 'Khách lẻ') {
+      } else if (!isReturn && checkoutData.customerName && checkoutData.customerName !== 'Khách lẻ') {
         // Create new customer record in Firestore if not existing
+        const unpaidDebt = Math.max(0, checkoutData.totalAmount - checkoutData.amountPaid);
         const newCustData: Omit<Customer, 'id'> = {
           code: checkoutData.customerCode || `KH${Date.now().toString().slice(-6)}`,
           name: checkoutData.customerName,
@@ -456,7 +501,9 @@ export default function App() {
         time: 'vừa xong',
         type: 'sale',
         storeName: 'Chống Thấm 36',
-        actionText: 'vừa bán đơn hàng',
+        actionText: isReturn
+          ? `vừa nhận trả hàng đơn ${checkoutData.originalOrderCode || orderCode}`
+          : 'vừa bán đơn hàng',
         amount: checkoutData.totalAmount,
         formattedAmount: checkoutData.totalAmount.toLocaleString('vi-VN'),
       };
@@ -528,6 +575,7 @@ export default function App() {
         <PosView
           products={products}
           customers={customers}
+          orders={orders}
           onBackToDashboard={() => setCurrentView('dashboard')}
           onCompleteCheckout={handleCompleteCheckout}
           onAddNewCustomer={handleAddNewCustomer}

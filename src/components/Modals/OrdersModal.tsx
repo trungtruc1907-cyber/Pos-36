@@ -105,6 +105,8 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
   const [quickSuppNote, setQuickSuppNote] = useState<string>('');
 
   // New Purchase Form local state
+  const [purchaseFormType, setPurchaseFormType] = useState<'import' | 'return'>('import');
+  const [selectedRefPurchaseCode, setSelectedRefPurchaseCode] = useState<string>('');
   const [newSupplier, setNewSupplier] = useState<string>('');
   const [selectedSupplierCode, setSelectedSupplierCode] = useState<string>('');
   const [newPurchaseCode, setNewPurchaseCode] = useState<string>('');
@@ -291,32 +293,46 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
   }, [currentView]);
 
   const filteredOrders = React.useMemo(() => {
-    const list = orders.filter(
-      (o) =>
+    const list = orders.filter((o) => {
+      const isReturn = o.status === 'Trả hàng' || Boolean(o.returnCode) || o.orderCode.startsWith('HDTH') || o.orderCode.startsWith('TH');
+      if (currentView === 'returns') {
+        if (!isReturn) return false;
+      } else if (currentView === 'orders') {
+        if (isReturn) return false;
+      }
+      return (
         o.orderCode.toLowerCase().includes(search.toLowerCase()) ||
         o.customerName.toLowerCase().includes(search.toLowerCase())
-    );
+      );
+    });
     return list.sort((a, b) => {
       const timeA = parseDateToMillis(a.date, a.createdAt);
       const timeB = parseDateToMillis(b.date, b.createdAt);
       if (timeA !== timeB) return timeB - timeA;
       return b.orderCode.localeCompare(a.orderCode);
     });
-  }, [orders, search]);
+  }, [orders, search, currentView]);
 
   const filteredPurchases = React.useMemo(() => {
-    const list = purchases.filter(
-      (p) =>
+    const list = purchases.filter((p) => {
+      const isReturn = p.type === 'return' || p.code.startsWith('THN') || p.status === 'Đã trả hàng';
+      if (currentView === 'purchase-returns') {
+        if (!isReturn) return false;
+      } else if (currentView === 'purchases') {
+        if (isReturn) return false;
+      }
+      return (
         p.code.toLowerCase().includes(search.toLowerCase()) ||
         p.supplierName.toLowerCase().includes(search.toLowerCase())
-    );
+      );
+    });
     return list.sort((a, b) => {
       const timeA = parseDateToMillis(pDate(a), a.createdAt);
       const timeB = parseDateToMillis(pDate(b), b.createdAt);
       if (timeA !== timeB) return timeB - timeA;
       return b.code.localeCompare(a.code);
     });
-  }, [purchases, search]);
+  }, [purchases, search, currentView]);
 
   function pDate(p: PurchaseOrder): string {
     return p.date || '';
@@ -380,8 +396,11 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
 
   const handleOpenEditPurchase = (p: PurchaseOrder) => {
     setEditingPurchaseId(p.id);
+    const isRet = p.type === 'return' || p.code?.startsWith('THN') || p.status === 'Đã trả hàng';
+    setPurchaseFormType(isRet ? 'return' : 'import');
     setNewPurchaseCode(p.code || '');
     setNewSupplier(p.supplierName || '');
+    setSelectedRefPurchaseCode(p.originalPurchaseCode || '');
 
     const matchedSupp = suppliers.find((s) => s.name === p.supplierName);
     setSelectedSupplierCode(matchedSupp ? matchedSupp.code : '');
@@ -414,23 +433,65 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
     setShowAddPurchaseTab(true);
   };
 
-  const handleSaveNewPurchase = (status: 'Phiếu tạm' | 'Đã nhập hàng') => {
+  const handleCreateReturnFromPurchase = (p: PurchaseOrder) => {
+    setEditingPurchaseId(null);
+    setPurchaseFormType('return');
+    setNewPurchaseCode(`THN${String(Math.floor(100000 + Math.random() * 900000))}`);
+    setNewSupplier(p.supplierName || '');
+    const matchedSupp = suppliers.find((s) => s.name === p.supplierName);
+    setSelectedSupplierCode(matchedSupp ? matchedSupp.code : '');
+    setSelectedRefPurchaseCode(p.code || '');
+    setNewNote(`Trả hàng từ phiếu nhập ${p.code}`);
+    setNewDiscount(0);
+    setDiscountType('amount');
+    setPaidToSupplier(0);
+
+    if (p.items && p.items.length > 0) {
+      setNewPurchaseItems(
+        p.items.map((it) => {
+          const matchedProd = products.find(
+            (prod) => prod.code === it.productCode || prod.name === it.productName
+          );
+          return {
+            productCode: it.productCode || matchedProd?.code || '',
+            productName: it.productName || matchedProd?.name || '',
+            unit: matchedProd?.unit || 'bao',
+            quantity: it.quantity || 1,
+            unitPrice: it.unitPrice || it.importPrice || matchedProd?.importPrice || 0,
+            discount: it.discount || 0,
+          };
+        })
+      );
+    } else {
+      setNewPurchaseItems([]);
+    }
+
+    setShowAddPurchaseTab(true);
+  };
+
+  const handleSaveNewPurchase = (status: 'Phiếu tạm' | 'Đã nhập hàng' | 'Đã trả hàng') => {
     if (newPurchaseItems.length === 0) {
-      alert('Vui lòng chọn ít nhất 1 sản phẩm để nhập hàng!');
+      alert('Vui lòng chọn ít nhất 1 sản phẩm!');
       return;
     }
 
-    if (status === 'Đã nhập hàng') {
+    const targetStatus = purchaseFormType === 'return'
+      ? (status === 'Phiếu tạm' ? 'Phiếu tạm' : 'Đã trả hàng')
+      : (status === 'Phiếu tạm' ? 'Phiếu tạm' : 'Đã nhập hàng');
+
+    if (targetStatus === 'Đã nhập hàng' || targetStatus === 'Đã trả hàng') {
       setShowCompleteConfirmModal(true);
     } else {
       executeSavePurchase('Phiếu tạm');
     }
   };
 
-  const executeSavePurchase = (status: 'Phiếu tạm' | 'Đã nhập hàng') => {
+  const executeSavePurchase = (status: 'Phiếu tạm' | 'Đã nhập hàng' | 'Đã trả hàng') => {
     setShowCompleteConfirmModal(false);
 
-    const code = newPurchaseCode.trim() || `PN${String(Math.floor(100000 + Math.random() * 900000))}`;
+    const isReturn = purchaseFormType === 'return';
+    const defaultPrefix = isReturn ? 'THN' : 'PN';
+    const code = newPurchaseCode.trim() || `${defaultPrefix}${String(Math.floor(100000 + Math.random() * 900000))}`;
     const now = new Date();
     const dateFormatted = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
 
@@ -447,11 +508,14 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
 
     const purchasePayload: Partial<PurchaseOrder> = {
       code,
+      type: isReturn ? 'return' : 'import',
+      originalPurchaseCode: isReturn ? selectedRefPurchaseCode : undefined,
       supplierName: newSupplier.trim() || 'Chưa chọn nhà cung cấp',
       itemsCount: newPurchaseItems.length || 1,
       totalAmount: calculatedNetTotal,
       status,
-      paidAmount: status === 'Đã nhập hàng' ? paidVal : (paidVal || 0),
+      paidAmount: paidVal,
+      paymentMethod,
       note: newNote,
       discount: actualDiscount,
       items: newPurchaseItems.map((item) => ({
@@ -494,11 +558,10 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
       }
     }
 
-    // 1. Automatically update product stock considering previous purchase state if editing
+    // 1. Stock Updates
     const existingP = editingPurchaseId ? purchases.find((p) => p.id === editingPurchaseId) : null;
-    const wasCompletedBefore = existingP && existingP.status === 'Đã nhập hàng';
+    const wasCompletedBefore = existingP && (existingP.status === 'Đã nhập hàng' || existingP.status === 'Đã trả hàng');
 
-    // Combine prop products with quickCreatedProducts for safe lookup
     const combinedProducts = [...products];
     quickCreatedProducts.forEach((qp) => {
       if (!combinedProducts.some((p) => p.id === qp.id || p.code === qp.code)) {
@@ -515,49 +578,53 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
             p.id === it.productCode ||
             (p.name && it.productName && p.name.toLowerCase() === it.productName.toLowerCase())
         );
-        const code = matched?.code || it.productCode;
-        if (code) {
-          oldQtyMap[code] = (oldQtyMap[code] || 0) + (Number(it.quantity) || 0);
+        const pCode = matched?.code || it.productCode;
+        if (pCode) {
+          oldQtyMap[pCode] = (oldQtyMap[pCode] || 0) + (Number(it.quantity) || 0);
         }
       });
     }
 
     const newQtyMap: Record<string, number> = {};
-    if (status === 'Đã nhập hàng') {
+    const isCompletedNow = status === 'Đã nhập hàng' || status === 'Đã trả hàng';
+    if (isCompletedNow) {
       newPurchaseItems.forEach((it) => {
         const matched = combinedProducts.find(
           (p) =>
             p.code === it.productCode ||
             (p.name && it.productName && p.name.toLowerCase() === it.productName.toLowerCase())
         );
-        const code = matched?.code || it.productCode;
-        if (code) {
-          newQtyMap[code] = (newQtyMap[code] || 0) + (Number(it.quantity) || 0);
+        const pCode = matched?.code || it.productCode;
+        if (pCode) {
+          newQtyMap[pCode] = (newQtyMap[pCode] || 0) + (Number(it.quantity) || 0);
         }
       });
     }
 
     const allProductCodes = Array.from(new Set([...Object.keys(oldQtyMap), ...Object.keys(newQtyMap)]));
 
-    allProductCodes.forEach((code) => {
-      const oldQty = oldQtyMap[code] || 0;
-      const newQty = newQtyMap[code] || 0;
-      const deltaQty = newQty - oldQty;
+    allProductCodes.forEach((pCode) => {
+      const oldQty = oldQtyMap[pCode] || 0;
+      const newQty = newQtyMap[pCode] || 0;
 
-      if (deltaQty !== 0 || status === 'Đã nhập hàng') {
+      // Import: stock INCREASES (+newQty - oldQty)
+      // Return: stock DECREASES (-newQty + oldQty)
+      const deltaStock = isReturn ? -(newQty - oldQty) : (newQty - oldQty);
+
+      if (deltaStock !== 0 || isCompletedNow) {
         const prod = combinedProducts.find(
           (p) =>
-            p.code === code ||
-            p.id === code ||
-            (p.name && code && p.name.toLowerCase() === code.toLowerCase())
+            p.code === pCode ||
+            p.id === pCode ||
+            (p.name && pCode && p.name.toLowerCase() === pCode.toLowerCase())
         );
         if (prod && onUpdateProduct) {
           const currentStock = Number(prod.stock || 0);
-          const updatedStock = Math.max(0, currentStock + deltaQty);
+          const updatedStock = Math.max(0, currentStock + deltaStock);
           const newItem = newPurchaseItems.find(
-            (it) => it.productCode === code || (it.productName && prod.name && it.productName.toLowerCase() === prod.name.toLowerCase())
+            (it) => it.productCode === pCode || (it.productName && prod.name && it.productName.toLowerCase() === prod.name.toLowerCase())
           );
-          const newCostPrice = (newItem && newItem.unitPrice) ? newItem.unitPrice : prod.costPrice;
+          const newCostPrice = (!isReturn && newItem && newItem.unitPrice) ? newItem.unitPrice : prod.costPrice;
 
           onUpdateProduct({
             ...prod,
@@ -568,76 +635,97 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
       }
     });
 
-    // 2. Automatically update supplier debt & total purchased
-      const remainingDebt = Math.max(0, calculatedNetTotal - paidVal);
-      const currentSupplierName = newSupplier.trim();
-      const oldSupplierName = existingP?.supplierName?.trim() || '';
+    // 2. Supplier Debt Updates
+    const currentSupplierName = newSupplier.trim();
+    const oldSupplierName = existingP?.supplierName?.trim() || '';
 
-      const isSupplierChanged =
-        !!existingP &&
-        !!oldSupplierName &&
-        !!currentSupplierName &&
-        oldSupplierName.toLowerCase() !== currentSupplierName.toLowerCase();
+    const isSupplierChanged =
+      !!existingP &&
+      !!oldSupplierName &&
+      !!currentSupplierName &&
+      oldSupplierName.toLowerCase() !== currentSupplierName.toLowerCase();
 
-      const oldTotal = (existingP && existingP.status === 'Đã nhập hàng') ? (existingP.totalAmount || 0) : 0;
-      const oldPaid = (existingP && existingP.status === 'Đã nhập hàng') ? (existingP.paidAmount || 0) : 0;
-      const oldDebt = Math.max(0, oldTotal - oldPaid);
+    const oldWasCompleted = existingP && (existingP.status === 'Đã nhập hàng' || existingP.status === 'Đã trả hàng');
+    const oldWasReturn = existingP && (existingP.type === 'return' || existingP.code?.startsWith('THN') || existingP.status === 'Đã trả hàng');
+    const oldTotal = oldWasCompleted ? (existingP.totalAmount || 0) : 0;
+    const oldPaid = oldWasCompleted ? (existingP.paidAmount || 0) : 0;
+    const oldNetDebt = Math.max(0, oldTotal - oldPaid);
 
-      if (isSupplierChanged && existingP.status === 'Đã nhập hàng') {
-        // Find old supplier and cancel/remove oldDebt and oldTotal from it
-        const oldSupp = suppliers.find(
-          (s) =>
-            s.name.toLowerCase() === oldSupplierName.toLowerCase() ||
-            (existingP.supplierCode && s.code === existingP.supplierCode)
-        );
-        if (oldSupp && onUpdateSupplier) {
-          const updatedOldDebt = Math.max(0, Number(oldSupp.currentDebt || 0) - oldDebt);
-          const updatedOldTotal = Math.max(0, Number(oldSupp.totalPurchased || 0) - oldTotal);
-          onUpdateSupplier(oldSupp.id, {
-            currentDebt: updatedOldDebt,
-            totalPurchased: updatedOldTotal,
-          });
-        }
-      }
-
-      // Now calculate net debt and total to add to the new/current supplier
-      const supp = suppliers.find(
+    if (isSupplierChanged && oldWasCompleted) {
+      const oldSupp = suppliers.find(
         (s) =>
-          s.name.toLowerCase() === currentSupplierName.toLowerCase() ||
-          (selectedSupplierCode && s.code === selectedSupplierCode)
+          s.name.toLowerCase() === oldSupplierName.toLowerCase() ||
+          (existingP.supplierCode && s.code === existingP.supplierCode)
       );
+      if (oldSupp && onUpdateSupplier) {
+        const revertDebt = oldWasReturn ? oldNetDebt : -oldNetDebt;
+        const revertTotal = oldWasReturn ? oldTotal : -oldTotal;
+        const updatedOldDebt = Math.max(0, Number(oldSupp.currentDebt || 0) + revertDebt);
+        const updatedOldTotal = Math.max(0, Number(oldSupp.totalPurchased || 0) + revertTotal);
+        onUpdateSupplier(oldSupp.id, {
+          currentDebt: updatedOldDebt,
+          totalPurchased: updatedOldTotal,
+        });
+      }
+    }
 
-      let netDebtToAdd: number;
-      let netTotalToAdd: number;
+    const supp = suppliers.find(
+      (s) =>
+        s.name.toLowerCase() === currentSupplierName.toLowerCase() ||
+        (selectedSupplierCode && s.code === selectedSupplierCode)
+    );
 
+    const remainingDebt = Math.max(0, calculatedNetTotal - paidVal);
+
+    let netDebtToAdd: number;
+    let netTotalToAdd: number;
+
+    if (isReturn) {
       if (isSupplierChanged) {
-        netDebtToAdd = status === 'Đã nhập hàng' ? remainingDebt : 0;
-        netTotalToAdd = status === 'Đã nhập hàng' ? calculatedNetTotal : 0;
+        netDebtToAdd = isCompletedNow ? -remainingDebt : 0;
+        netTotalToAdd = isCompletedNow ? -calculatedNetTotal : 0;
       } else {
-        netDebtToAdd = status === 'Đã nhập hàng' ? (remainingDebt - oldDebt) : -oldDebt;
-        netTotalToAdd = status === 'Đã nhập hàng' ? (calculatedNetTotal - oldTotal) : -oldTotal;
+        const prevImpactDebt = oldWasCompleted ? (oldWasReturn ? -oldNetDebt : oldNetDebt) : 0;
+        const prevImpactTotal = oldWasCompleted ? (oldWasReturn ? -oldTotal : oldTotal) : 0;
+        const newImpactDebt = isCompletedNow ? -remainingDebt : 0;
+        const newImpactTotal = isCompletedNow ? -calculatedNetTotal : 0;
+        netDebtToAdd = newImpactDebt - prevImpactDebt;
+        netTotalToAdd = newImpactTotal - prevImpactTotal;
       }
+    } else {
+      if (isSupplierChanged) {
+        netDebtToAdd = isCompletedNow ? remainingDebt : 0;
+        netTotalToAdd = isCompletedNow ? calculatedNetTotal : 0;
+      } else {
+        const prevImpactDebt = oldWasCompleted ? (oldWasReturn ? -oldNetDebt : oldNetDebt) : 0;
+        const prevImpactTotal = oldWasCompleted ? (oldWasReturn ? -oldTotal : oldTotal) : 0;
+        const newImpactDebt = isCompletedNow ? remainingDebt : 0;
+        const newImpactTotal = isCompletedNow ? calculatedNetTotal : 0;
+        netDebtToAdd = newImpactDebt - prevImpactDebt;
+        netTotalToAdd = newImpactTotal - prevImpactTotal;
+      }
+    }
 
-      if (supp && onUpdateSupplier) {
-        const updatedDebt = Math.max(0, Number(supp.currentDebt || 0) + netDebtToAdd);
-        const updatedTotalPurchased = Math.max(0, Number(supp.totalPurchased || 0) + netTotalToAdd);
-        onUpdateSupplier(supp.id, {
-          currentDebt: updatedDebt,
-          totalPurchased: updatedTotalPurchased,
-        });
-      } else if (onAddSupplier && currentSupplierName && status === 'Đã nhập hàng') {
-        const suppCode = selectedSupplierCode || `NCC${Math.floor(100000 + Math.random() * 900000)}`;
-        onAddSupplier({
-          code: suppCode,
-          name: currentSupplierName,
-          phone: '',
-          email: '',
-          address: '',
-          note: 'Tự động tạo khi hoàn thành phiếu nhập',
-          currentDebt: remainingDebt,
-          totalPurchased: calculatedNetTotal,
-        });
-      }
+    if (supp && onUpdateSupplier) {
+      const updatedDebt = Math.max(0, Number(supp.currentDebt || 0) + netDebtToAdd);
+      const updatedTotalPurchased = Math.max(0, Number(supp.totalPurchased || 0) + netTotalToAdd);
+      onUpdateSupplier(supp.id, {
+        currentDebt: updatedDebt,
+        totalPurchased: updatedTotalPurchased,
+      });
+    } else if (onAddSupplier && currentSupplierName && isCompletedNow) {
+      const suppCode = selectedSupplierCode || `NCC${Math.floor(100000 + Math.random() * 900000)}`;
+      onAddSupplier({
+        code: suppCode,
+        name: currentSupplierName,
+        phone: '',
+        email: '',
+        address: '',
+        note: isReturn ? 'Tự động tạo khi trả hàng nhập' : 'Tự động tạo khi hoàn thành phiếu nhập',
+        currentDebt: isReturn ? 0 : remainingDebt,
+        totalPurchased: isReturn ? 0 : calculatedNetTotal,
+      });
+    }
 
     const wasEditing = !!editingPurchaseId;
     setEditingPurchaseId(null);
@@ -648,14 +736,19 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
     setNewDiscount(0);
     setNewNote('');
     setPaidToSupplier(0);
+    setSelectedRefPurchaseCode('');
     setShowAddPurchaseTab(false);
 
     alert(
       wasEditing
-        ? `Đã hoàn thành! Phiếu nhập hàng gốc đã được xóa/ghi đè và thay thế thành công bằng thông tin phiếu ${code}. Tồn kho và công nợ đã được ghi nhận.`
-        : status === 'Đã nhập hàng'
-        ? `Đã hoàn thành phiếu nhập ${code}! Tồn kho hàng hóa và công nợ nhà cung cấp đã được tự động cập nhật.`
-        : `Đã lưu tạm phiếu nhập ${code}!`
+        ? `Đã hoàn thành! Phiếu gốc đã được cập nhật thành công (${code}). Tồn kho và công nợ đã được ghi nhận.`
+        : (isReturn
+          ? (status === 'Đã trả hàng'
+            ? `Đã hoàn thành phiếu trả hàng ${code}! Tồn kho hàng hóa và công nợ nhà cung cấp đã được tự động trừ.`
+            : `Đã lưu tạm phiếu trả hàng ${code}!`)
+          : (status === 'Đã nhập hàng'
+            ? `Đã hoàn thành phiếu nhập ${code}! Tồn kho hàng hóa và công nợ nhà cung cấp đã được tự động cập nhật.`
+            : `Đã lưu tạm phiếu nhập ${code}!`))
     );
   };
 
@@ -1375,7 +1468,9 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
                 </div>
                 <div>
                   <h3 className="text-base font-extrabold text-gray-900">
-                    Thông báo nghiệp vụ Hoàn thành nhập hàng
+                    {purchaseFormType === 'return'
+                      ? 'Thông báo nghiệp vụ Hoàn thành trả hàng nhập'
+                      : 'Thông báo nghiệp vụ Hoàn thành nhập hàng'}
                   </h3>
                   <p className="text-xs text-gray-500 font-medium">
                     Mã phiếu: <span className="font-mono font-bold text-blue-600">{newPurchaseCode}</span>
@@ -1389,11 +1484,11 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
                 <div>
                   {editingPurchaseId ? (
                     <span>
-                      Quý khách đang <strong>sửa phiếu nhập hàng</strong>. Khi chọn <strong>[Xác nhận & Hoàn thành]</strong>, phiếu nhập hàng gốc sẽ được xóa đi và thay thế toàn bộ bằng thông tin phiếu mới sửa.
+                      Quý khách đang <strong>sửa {purchaseFormType === 'return' ? 'phiếu trả hàng nhập' : 'phiếu nhập hàng'}</strong>. Khi chọn <strong>[Xác nhận & Hoàn thành]</strong>, thông tin phiếu sẽ được cập nhật đồng bộ.
                     </span>
                   ) : (
                     <span>
-                      Quý khách chuẩn bị <strong>hoàn thành phiếu nhập hàng</strong>. Hệ thống sẽ tự động thực hiện đồng bộ các nghiệp vụ kinh doanh dưới đây.
+                      Quý khách chuẩn bị <strong>hoàn thành {purchaseFormType === 'return' ? 'phiếu trả hàng nhập' : 'phiếu nhập hàng'}</strong>. Hệ thống sẽ tự động thực hiện đồng bộ các nghiệp vụ kinh doanh dưới đây.
                     </span>
                   )}
                 </div>
@@ -1404,12 +1499,12 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
                 <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 space-y-1">
                   <div className="flex items-center space-x-2 text-xs font-bold text-gray-900">
                     <FileText className="w-4 h-4 text-indigo-600 shrink-0" />
-                    <span>1. Cập nhật & Ghi đè phiếu nhập hàng</span>
+                    <span>1. Cập nhật {purchaseFormType === 'return' ? 'phiếu trả hàng nhập' : 'phiếu nhập hàng'}</span>
                   </div>
                   <p className="text-[11px] text-gray-600 pl-6">
                     {editingPurchaseId
-                      ? `Phiếu nhập hàng gốc (${newPurchaseCode}) sẽ được xóa đi và thay thế bằng dữ liệu mới sửa (${newPurchaseItems.length} danh mục sản phẩm).`
-                      : `Khởi tạo chính thức phiếu nhập hàng mới (${newPurchaseCode}) với ${newPurchaseItems.length} danh mục sản phẩm.`}
+                      ? `Phiếu gốc (${newPurchaseCode}) sẽ được cập nhật thành công với ${newPurchaseItems.length} danh mục sản phẩm.`
+                      : `Khởi tạo chính thức phiếu ${purchaseFormType === 'return' ? 'trả hàng' : 'nhập hàng'} mới (${newPurchaseCode}) với ${newPurchaseItems.length} danh mục sản phẩm.`}
                   </p>
                 </div>
 
@@ -1420,14 +1515,18 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
                   </div>
                   <div className="pl-6 space-y-1.5">
                     <p className="text-[11px] text-gray-600">
-                      Số lượng tồn kho sẽ được kiểm tra và cộng dồn tự động vào kho hàng hóa:
+                      {purchaseFormType === 'return'
+                        ? 'Số lượng tồn kho sẽ được tự động trừ tương ứng khỏi kho hàng:'
+                        : 'Số lượng tồn kho sẽ được kiểm tra và cộng dồn tự động vào kho hàng hóa:'}
                     </p>
                     <div className="max-h-36 overflow-y-auto border border-gray-200 rounded-lg bg-white divide-y divide-gray-100 text-[11px]">
                       {newPurchaseItems.map((item, idx) => {
                         const prod = products.find((p) => p.code === item.productCode || p.id === item.productCode);
                         const currentStock = prod ? Number(prod.stock || 0) : 0;
-                        const qtyToAdd = Number(item.quantity || 0);
-                        const newStock = currentStock + qtyToAdd;
+                        const qty = Number(item.quantity || 0);
+                        const newStock = purchaseFormType === 'return'
+                          ? Math.max(0, currentStock - qty)
+                          : currentStock + qty;
                         return (
                           <div key={idx} className="p-2 flex items-center justify-between hover:bg-gray-50">
                             <div>
@@ -1437,11 +1536,15 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
                             <div className="text-right">
                               <span className="text-gray-500">Tồn hiện tại: </span>
                               <span className="font-mono font-medium text-gray-800">{currentStock}</span>
-                              <span className="mx-1.5 text-emerald-600 font-bold">→</span>
+                              <span className="mx-1.5 text-blue-600 font-bold">→</span>
                               <span className="text-gray-500">Tồn mới: </span>
-                              <span className="font-mono font-bold text-emerald-700">{newStock}</span>
-                              <span className="ml-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                                +{qtyToAdd}
+                              <span className="font-mono font-bold text-gray-900">{newStock}</span>
+                              <span className={`ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+                                purchaseFormType === 'return'
+                                  ? 'text-amber-700 bg-amber-50 border-amber-200'
+                                  : 'text-emerald-600 bg-emerald-50 border-emerald-200'
+                              }`}>
+                                {purchaseFormType === 'return' ? `-${qty}` : `+${qty}`}
                               </span>
                             </div>
                           </div>
@@ -1465,9 +1568,9 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
                       const debt = Math.max(0, net - paid);
                       return (
                         <>
-                          <div>• Tổng tiền phải trả: <strong className="font-mono text-gray-900">{net.toLocaleString('vi-VN')} đ</strong></div>
-                          <div>• Đã thanh toán: <strong className="font-mono text-emerald-700">{paid.toLocaleString('vi-VN')} đ</strong></div>
-                          <div>• Ghi nhận nợ NCC: <strong className="font-mono text-blue-700">{debt.toLocaleString('vi-VN')} đ</strong></div>
+                          <div>• Tổng giá trị trả hàng: <strong className="font-mono text-gray-900">{net.toLocaleString('vi-VN')} đ</strong></div>
+                          <div>• NCC hoàn tiền/thanh toán: <strong className="font-mono text-emerald-700">{paid.toLocaleString('vi-VN')} đ</strong></div>
+                          <div>• Trừ vào công nợ NCC: <strong className="font-mono text-amber-700">{debt.toLocaleString('vi-VN')} đ</strong></div>
                         </>
                       );
                     })()}
@@ -1480,7 +1583,7 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
                     <span>4. Ghi Sổ kho & Sổ quỹ</span>
                   </div>
                   <p className="text-[11px] text-gray-600 pl-6">
-                    Tự động lưu vết biến động tồn kho và nhật ký giao dịch mua hàng theo thời gian thực.
+                    Tự động lưu vết biến động tồn kho và nhật ký giao dịch trả hàng nhập theo thời gian thực.
                   </p>
                 </div>
               </div>
@@ -1496,7 +1599,7 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
                 </button>
                 <button
                   type="button"
-                  onClick={() => executeSavePurchase('Đã nhập hàng')}
+                  onClick={() => executeSavePurchase(purchaseFormType === 'return' ? 'Đã trả hàng' : 'Đã nhập hàng')}
                   className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold transition-colors shadow-md flex items-center space-x-1.5 cursor-pointer"
                 >
                   <CheckCircle2 className="w-4 h-4" />
@@ -1862,26 +1965,56 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
             </div>
           )}
 
-          {currentView === 'purchases' && (
-            <button
-              type="button"
-              onClick={() => {
-                setEditingPurchaseId(null);
-                setNewPurchaseCode(`PN${String(Math.floor(100000 + Math.random() * 900000))}`);
-                setNewSupplier('');
-                setSelectedSupplierCode('');
-                setNewNote('');
-                setNewDiscount(0);
-                setDiscountType('amount');
-                setPaidToSupplier(0);
-                setNewPurchaseItems([]);
-                setShowAddPurchaseTab(true);
-              }}
-              className="bg-[#1e0b54] hover:bg-[#15073c] text-white font-bold px-3.5 py-2 rounded-lg text-xs flex items-center shadow-md transition-colors shrink-0 cursor-pointer"
-            >
-              <Plus className="w-4 h-4 mr-1.5 text-amber-400" />
-              Thêm phiếu nhập
-            </button>
+          {(currentView === 'purchases' || currentView === 'purchase-returns') && (
+            <div className="flex items-center space-x-2 shrink-0">
+              {currentView === 'purchases' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingPurchaseId(null);
+                    setPurchaseFormType('import');
+                    setNewPurchaseCode(`PN${String(Math.floor(100000 + Math.random() * 900000))}`);
+                    setNewSupplier('');
+                    setSelectedSupplierCode('');
+                    setSelectedRefPurchaseCode('');
+                    setNewNote('');
+                    setNewDiscount(0);
+                    setDiscountType('amount');
+                    setPaidToSupplier(0);
+                    setNewPurchaseItems([]);
+                    setShowAddPurchaseTab(true);
+                  }}
+                  className="bg-[#1e0b54] hover:bg-[#15073c] text-white font-bold px-3.5 py-2 rounded-lg text-xs flex items-center shadow-md transition-colors shrink-0 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4 mr-1.5 text-amber-400" />
+                  Thêm phiếu nhập
+                </button>
+              )}
+
+              {currentView === 'purchase-returns' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingPurchaseId(null);
+                    setPurchaseFormType('return');
+                    setNewPurchaseCode(`THN${String(Math.floor(100000 + Math.random() * 900000))}`);
+                    setNewSupplier('');
+                    setSelectedSupplierCode('');
+                    setSelectedRefPurchaseCode('');
+                    setNewNote('');
+                    setNewDiscount(0);
+                    setDiscountType('amount');
+                    setPaidToSupplier(0);
+                    setNewPurchaseItems([]);
+                    setShowAddPurchaseTab(true);
+                  }}
+                  className="bg-[#1e0b54] hover:bg-[#15073c] text-white font-bold px-3.5 py-2 rounded-lg text-xs flex items-center shadow-md transition-colors shrink-0 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4 mr-1.5 text-amber-400" />
+                  Thêm phiếu trả hàng nhập
+                </button>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -1914,11 +2047,11 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-100 border-b text-gray-600 font-bold uppercase text-[11px]">
               <tr>
-                <th className="p-3">Mã phiếu nhập</th>
-                <th className="p-3">Thời gian nhập</th>
+                <th className="p-3">{currentView === 'purchase-returns' ? 'Mã phiếu trả' : 'Mã phiếu nhập'}</th>
+                <th className="p-3">{currentView === 'purchase-returns' ? 'Thời gian trả' : 'Thời gian nhập'}</th>
                 <th className="p-3">Nhà cung cấp</th>
                 <th className="p-3 text-center">Số mặt hàng</th>
-                <th className="p-3 text-right">Tổng tiền nhập</th>
+                <th className="p-3 text-right">{currentView === 'purchase-returns' ? 'Tổng tiền trả' : 'Tổng tiền nhập'}</th>
                 <th className="p-3 text-center">Trạng thái</th>
               </tr>
             </thead>
@@ -1926,7 +2059,7 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
               {paginatedPurchases.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="text-center py-8 text-gray-400 italic">
-                    Chưa có phiếu nhập hàng nào.
+                    {currentView === 'purchase-returns' ? 'Chưa có phiếu trả hàng nhập nào.' : 'Chưa có phiếu nhập hàng nào.'}
                   </td>
                 </tr>
               ) : (
@@ -2166,12 +2299,16 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      alert(`Đã gửi yêu cầu hủy phiếu nhập ${p.code}`);
+                                      if (confirm(`Bạn có chắc chắn muốn xóa phiếu ${p.code}?`)) {
+                                        if (onDeletePurchase) {
+                                          onDeletePurchase(p.id);
+                                        }
+                                      }
                                     }}
-                                    className="flex items-center px-3 py-1.5 border border-gray-300 rounded text-xs font-medium text-gray-700 hover:bg-gray-100 transition-colors"
+                                    className="flex items-center px-3 py-1.5 border border-rose-200 bg-rose-50 hover:bg-rose-100 rounded text-xs font-semibold text-rose-700 transition-colors cursor-pointer"
                                   >
-                                    <Trash2 className="w-3.5 h-3.5 mr-1 text-gray-500" />
-                                    Hủy
+                                    <Trash2 className="w-3.5 h-3.5 mr-1 text-rose-600" />
+                                    Xóa phiếu
                                   </button>
                                   <button
                                     onClick={(e) => {
@@ -2218,16 +2355,19 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
                                     <Pencil className="w-3.5 h-3.5 mr-1 text-gray-500" />
                                     Chỉnh sửa
                                   </button>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      alert(`Tạo phiếu trả hàng nhập cho ${p.code}`);
-                                    }}
-                                    className="flex items-center px-3 py-1.5 border border-gray-300 rounded text-xs font-medium text-gray-700 hover:bg-gray-100 transition-colors"
-                                  >
-                                    <RotateCcw className="w-3.5 h-3.5 mr-1 text-gray-500" />
-                                    Trả hàng nhập
-                                  </button>
+                                  {p.type !== 'return' && !p.code.startsWith('THN') && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleCreateReturnFromPurchase(p);
+                                      }}
+                                      className="flex items-center px-3 py-1.5 border border-amber-300 bg-amber-50 hover:bg-amber-100 rounded text-xs font-semibold text-amber-800 transition-colors cursor-pointer"
+                                      title="Tạo phiếu trả hàng cho đơn nhập này"
+                                    >
+                                      <RotateCcw className="w-3.5 h-3.5 mr-1 text-amber-600" />
+                                      Trả hàng nhập
+                                    </button>
+                                  )}
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
@@ -2770,9 +2910,9 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
                   </div>
                   {showOrderCustDropdown && (
                     <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto">
-                      {customers.map((c) => (
+                      {customers.map((c, cIdx) => (
                         <div
-                          key={c.id}
+                          key={c.id ? `${c.id}-cust-${cIdx}` : `cust-${cIdx}`}
                           onClick={() => {
                             setEditOrderCustomerName(c.name);
                             setEditOrderCustomerCode(c.code || 'KH000009');
@@ -2838,9 +2978,9 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
                             p.name.toLowerCase().includes(orderProdSearchKey.toLowerCase()) ||
                             p.code.toLowerCase().includes(orderProdSearchKey.toLowerCase())
                         )
-                        .map((p) => (
+                        .map((p, pIdx) => (
                           <div
-                            key={p.id}
+                            key={p.id ? `${p.id}-pdrop-${pIdx}` : `pdrop-${pIdx}`}
                             onClick={() => {
                               setEditOrderItems((prev) => {
                                 const existingIdx = prev.findIndex(

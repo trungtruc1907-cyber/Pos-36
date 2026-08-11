@@ -91,6 +91,8 @@ export interface InvoiceTab {
   amountPaid: number;
   paymentMethod: PaymentMethod;
   note: string;
+  isReturn?: boolean;
+  originalOrderCode?: string;
 }
 
 export interface Order {
@@ -160,16 +162,20 @@ export interface PurchaseOrderItem {
 export interface PurchaseOrder {
   id: string;
   code: string;
+  type?: 'import' | 'return';
+  originalPurchaseCode?: string;
   supplierName: string;
+  supplierCode?: string;
   date: string;
   totalAmount: number;
   itemsCount: number;
-  status: 'Đã nhập hàng' | 'Đã thanh toán' | 'Đang xử lý' | 'Phiếu tạm';
+  status: 'Đã nhập hàng' | 'Đã thanh toán' | 'Đang xử lý' | 'Phiếu tạm' | 'Đã trả hàng';
   creator?: string;
   buyer?: string;
   items?: PurchaseOrderItem[];
   discount?: number;
   paidAmount?: number;
+  paymentMethod?: string;
   note?: string;
   createdAt?: string;
   updatedAt?: string;

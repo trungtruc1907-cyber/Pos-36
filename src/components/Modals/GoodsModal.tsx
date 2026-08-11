@@ -1925,8 +1925,8 @@ export const GoodsModal: React.FC<GoodsModalProps> = ({
                     className="flex-1 text-xs p-2 border border-gray-300 rounded bg-white focus:outline-none focus:border-[#1e0b54]"
                   >
                     <option value="">-- Chọn hàng hóa để thêm vào phiếu kiểm --</option>
-                    {products.map((p) => (
-                      <option key={p.id} value={p.id}>
+                    {products.map((p, pIdx) => (
+                      <option key={p.id ? `${p.id}-opt-${pIdx}` : `opt-${pIdx}`} value={p.id}>
                         {p.code} - {p.name} (Tồn hiện tại: {p.stock})
                       </option>
                     ))}
@@ -1958,7 +1958,7 @@ export const GoodsModal: React.FC<GoodsModalProps> = ({
                       newScItems.map(({ product, actualQty }, idx) => {
                         const diff = actualQty - product.stock;
                         return (
-                          <tr key={product.id}>
+                          <tr key={product.id ? `${product.id}-sc-${idx}` : `sc-${idx}`}>
                             <td className="p-2 font-mono font-bold text-indigo-900">{product.code}</td>
                             <td className="p-2 font-medium text-gray-900">{product.name}</td>
                             <td className="p-2 text-right font-mono text-gray-600">{product.stock}</td>
