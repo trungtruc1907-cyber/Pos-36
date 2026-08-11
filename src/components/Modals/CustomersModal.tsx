@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Customer, Supplier, Order, PurchaseOrder, ViewMode } from '../../types';
+import { Customer, Supplier, Order, PurchaseOrder, ViewMode, DebtPaymentRecord } from '../../types';
 import { parseDateToMillis } from '../../utils/dateUtils';
-import { Users, Search, Phone, MapPin, UserPlus, X, Building2, UserCheck, Tag, Mail, Pencil, Trash2, Lock, Edit3, Eye, Receipt, Printer } from 'lucide-react';
+import { Users, Search, Phone, MapPin, UserPlus, X, Building2, UserCheck, Tag, Mail, Pencil, Trash2, Lock, Edit3, Eye, Receipt, Printer, CircleDollarSign, FileOutput } from 'lucide-react';
 import { Pagination } from '../Pagination';
 
 function getCustomerInvoices(c: Customer, orders: Order[] = []): Order[] {
@@ -121,6 +121,7 @@ interface CustomersModalProps {
   onAddSupplier?: (supplier: Omit<Supplier, 'id'>) => void;
   onUpdateSupplier?: (id: string, updates: Partial<Supplier>) => void;
   onDeleteSupplier?: (id: string) => void;
+  onAddDebtPayment?: (record: DebtPaymentRecord) => void;
 }
 
 export const CustomersModal: React.FC<CustomersModalProps> = ({
@@ -136,6 +137,7 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
   onAddSupplier,
   onUpdateSupplier,
   onDeleteSupplier,
+  onAddDebtPayment,
 }) => {
   const [search, setSearch] = useState('');
   const [showAdd, setShowAdd] = useState(false);
@@ -169,6 +171,96 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
   const [supplierEmail, setSupplierEmail] = useState('');
   const [supplierDebt, setSupplierDebt] = useState('0');
   const [supplierPurchased, setSupplierPurchased] = useState('0');
+
+  // Supplier Debt Payment Modal state
+  const [showPaySupplierModal, setShowPaySupplierModal] = useState<boolean>(false);
+  const [paySupplierTarget, setPaySupplierTarget] = useState<Supplier | null>(null);
+  const [paySupplierAmount, setPaySupplierAmount] = useState<number | string>(0);
+  const [paySupplierMethod, setPaySupplierMethod] = useState<string>('Tiền mặt');
+  const [paySupplierDate, setPaySupplierDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [paySupplierNote, setPaySupplierNote] = useState<string>('');
+
+  // Customer Debt Payment Modal state
+  const [showPayCustomerModal, setShowPayCustomerModal] = useState<boolean>(false);
+  const [payCustomerTarget, setPayCustomerTarget] = useState<Customer | null>(null);
+  const [payCustomerAmount, setPayCustomerAmount] = useState<number | string>(0);
+  const [payCustomerMethod, setPayCustomerMethod] = useState<string>('Tiền mặt');
+  const [payCustomerDate, setPayCustomerDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [payCustomerNote, setPayCustomerNote] = useState<string>('');
+
+  // Supplier Debt Adjustment Modal state
+  const [showAdjustSupplierDebtModal, setShowAdjustSupplierDebtModal] = useState<boolean>(false);
+  const [adjustSupplierTarget, setAdjustSupplierTarget] = useState<Supplier | null>(null);
+  const [adjustSupplierNewDebt, setAdjustSupplierNewDebt] = useState<number | string>(0);
+  const [adjustSupplierNote, setAdjustSupplierNote] = useState<string>('');
+
+  // Export functions for Customer Debt
+  const handleExportCustomerDebtFile = (cust: Customer) => {
+    const dateStr = new Date().toLocaleDateString('vi-VN');
+    let csvContent = `\uFEFFBÁO CÁO CÔNG NỢ KHÁCH HÀNG\n`;
+    csvContent += `Khách hàng: "${cust.name}"\nMã KH: "${cust.code}"\n`;
+    csvContent += `SĐT: "${cust.phone || ''}"\nNgày xuất báo cáo: "${dateStr}"\n`;
+    csvContent += `Tổng nợ hiện tại: "${(cust.debt || 0).toLocaleString('vi-VN')} VNĐ"\n\n`;
+    csvContent += `Mã chứng từ,Thời gian,Loại chứng từ,Giá trị (VNĐ),Nợ cần thu (VNĐ)\n`;
+    csvContent += `"HD009720","${dateStr}","Hóa đơn bán hàng ghi nợ","${cust.totalSpent || 0}","${cust.debt || 0}"\n`;
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `CongNo_KH_${cust.code || 'KH'}_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+  };
+
+  // Export functions for Supplier Debt
+  const handleExportSupplierDebtFile = (supplier: Supplier) => {
+    const dateStr = new Date().toLocaleDateString('vi-VN');
+    let csvContent = `\uFEFFBÁO CÁO CÔNG NỢ NHÀ CUNG CẤP\n`;
+    csvContent += `Nhà cung cấp: "${supplier.name}"\nMã NCC: "${supplier.code}"\n`;
+    csvContent += `SĐT: "${supplier.phone || ''}"\nNgày xuất báo cáo: "${dateStr}"\n`;
+    csvContent += `Tổng nợ hiện tại: "${(supplier.currentDebt || 0).toLocaleString('vi-VN')} VNĐ"\n\n`;
+    csvContent += `Mã chứng từ,Thời gian,Loại chứng từ,Giá trị (VNĐ),Đã trả (VNĐ),Nợ còn lại (VNĐ)\n`;
+
+    const matchedPurchases = purchases.filter(
+      (p) =>
+        (p.supplierName && p.supplierName.toLowerCase() === supplier.name.toLowerCase()) ||
+        (supplier.code && p.code && p.code.includes(supplier.code))
+    );
+
+    matchedPurchases.forEach((p) => {
+      const remaining = (p.totalAmount || 0) - (p.paidAmount || 0);
+      csvContent += `"${p.code}","${p.date}","Phiếu nhập hàng","${p.totalAmount || 0}","${p.paidAmount || 0}","${remaining}"\n`;
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `CongNo_NCC_${supplier.code || 'NCC'}_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+  };
+
+  const handleExportSupplierFile = (supplier: Supplier) => {
+    const dateStr = new Date().toLocaleDateString('vi-VN');
+    let csvContent = `\uFEFFDANH SÁCH CHỨNG TỪ NHÀ CUNG CẤP\n`;
+    csvContent += `Nhà cung cấp: "${supplier.name}"\nMã NCC: "${supplier.code}"\n`;
+    csvContent += `Tổng giá trị nhập hàng: "${(supplier.totalPurchased || 0).toLocaleString('vi-VN')} VNĐ"\n\n`;
+    csvContent += `Mã phiếu,Thời gian,Số lượng sản phẩm,Tổng tiền (VNĐ),Đã thanh toán (VNĐ),Trạng thái\n`;
+
+    const matchedPurchases = purchases.filter(
+      (p) =>
+        (p.supplierName && p.supplierName.toLowerCase() === supplier.name.toLowerCase()) ||
+        (supplier.code && p.code && p.code.includes(supplier.code))
+    );
+
+    matchedPurchases.forEach((p) => {
+      csvContent += `"${p.code}","${p.date}","${p.itemsCount || 0}","${p.totalAmount || 0}","${p.paidAmount || 0}","${p.status}"\n`;
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `ChungTu_NCC_${supplier.code || 'NCC'}_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+  };
 
   const getHeaderInfo = () => {
     switch (currentView) {
@@ -761,6 +853,59 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
 
                               return (
                                 <div className="p-4 bg-white space-y-3">
+                                  {/* Action Bar matching screenshot */}
+                                  <div className="flex items-center justify-between py-2 px-1 border-b border-gray-100 mb-2">
+                                    <div className="flex items-center space-x-2.5">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleExportSupplierDebtFile(s)}
+                                        className="flex items-center space-x-1.5 px-3 py-1.5 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg text-xs font-medium text-gray-700 shadow-2xs transition-colors cursor-pointer"
+                                      >
+                                        <FileOutput className="w-4 h-4 text-gray-600" />
+                                        <span>Xuất file công nợ</span>
+                                      </button>
+
+                                      <button
+                                        type="button"
+                                        onClick={() => handleExportSupplierFile(s)}
+                                        className="flex items-center space-x-1.5 px-3 py-1.5 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg text-xs font-medium text-gray-700 shadow-2xs transition-colors cursor-pointer"
+                                      >
+                                        <FileOutput className="w-4 h-4 text-gray-600" />
+                                        <span>Xuất file</span>
+                                      </button>
+                                    </div>
+
+                                    <div className="flex items-center space-x-2.5">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setPaySupplierTarget(s);
+                                          setPaySupplierAmount(s.currentDebt || 0);
+                                          setPaySupplierNote(`Thanh toán công nợ nhà cung cấp ${s.name}`);
+                                          setShowPaySupplierModal(true);
+                                        }}
+                                        className="flex items-center space-x-1.5 px-4 py-1.5 bg-[#0066ff] hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-2xs transition-colors cursor-pointer"
+                                      >
+                                        <CircleDollarSign className="w-4 h-4 text-white" />
+                                        <span>Thanh toán</span>
+                                      </button>
+
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setAdjustSupplierTarget(s);
+                                          setAdjustSupplierNewDebt(s.currentDebt || 0);
+                                          setAdjustSupplierNote(`Điều chỉnh công nợ nhà cung cấp ${s.name}`);
+                                          setShowAdjustSupplierDebtModal(true);
+                                        }}
+                                        className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg text-xs font-medium text-gray-700 shadow-2xs transition-colors cursor-pointer"
+                                      >
+                                        <Pencil className="w-4 h-4 text-gray-600" />
+                                        <span>Điều chỉnh</span>
+                                      </button>
+                                    </div>
+                                  </div>
+
                                   <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between text-xs">
                                     <div>
                                       <span className="font-bold text-red-900">Tổng nợ cần trả hiện tại: </span>
@@ -1206,7 +1351,36 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
 
                             {/* Tab Content: Nợ cần thu từ khách */}
                             {customerDetailTab === 'debt' && (
-                              <div className="p-4 bg-white">
+                              <div className="p-4 bg-white space-y-4">
+                                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 pb-3">
+                                  <div className="flex items-center space-x-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleExportCustomerDebtFile(c)}
+                                      className="flex items-center space-x-1 px-3 py-1.5 border border-gray-300 hover:bg-gray-50 rounded text-xs font-medium text-gray-700 transition-colors cursor-pointer"
+                                    >
+                                      <FileOutput className="w-3.5 h-3.5 text-gray-500" />
+                                      <span>Xuất file công nợ</span>
+                                    </button>
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setPayCustomerTarget(c);
+                                      setPayCustomerAmount(c.debt || 0);
+                                      setPayCustomerMethod('Tiền mặt');
+                                      setPayCustomerDate(new Date().toISOString().slice(0, 10));
+                                      setPayCustomerNote(`Thu nợ công nợ khách hàng ${c.name}`);
+                                      setShowPayCustomerModal(true);
+                                    }}
+                                    className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-[#0066ff] hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-2xs transition-colors cursor-pointer"
+                                  >
+                                    <CircleDollarSign className="w-4 h-4 text-emerald-300" />
+                                    <span>Thu nợ khách hàng</span>
+                                  </button>
+                                </div>
+
                                 <table className="w-full text-left text-xs border border-gray-200">
                                   <thead className="bg-gray-50 text-gray-600 font-bold border-b border-gray-200">
                                     <tr>
@@ -1791,6 +1965,361 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
                 className="px-4 py-1.5 bg-[#1e0b54] hover:bg-[#15073c] text-white rounded text-xs font-bold transition-colors"
               >
                 Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Thanh toán công nợ Nhà Cung Cấp */}
+      {showPaySupplierModal && paySupplierTarget && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="bg-[#0066ff] px-5 py-4 text-white flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <CircleDollarSign className="w-5 h-5 text-white" />
+                <h3 className="font-bold text-base">Thanh toán công nợ Nhà Cung Cấp</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPaySupplierModal(false)}
+                className="text-white/80 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs">
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-1">
+                <div className="font-bold text-gray-900 text-sm">{paySupplierTarget.name}</div>
+                <div className="text-gray-500 font-mono">Mã NCC: {paySupplierTarget.code}</div>
+                <div className="text-gray-700 pt-1">
+                  Nợ hiện tại: <strong className="text-red-600 font-mono text-sm ml-1">{(paySupplierTarget.currentDebt || 0).toLocaleString('vi-VN')}đ</strong>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-bold mb-1">
+                  Số tiền thanh toán (VNĐ) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  value={paySupplierAmount}
+                  onChange={(e) => setPaySupplierAmount(e.target.value)}
+                  className="w-full p-2.5 border border-gray-300 rounded-lg text-sm font-mono font-bold text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Nhập số tiền trả nợ..."
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-gray-700 font-semibold mb-1">Hình thức thanh toán</label>
+                  <select
+                    value={paySupplierMethod}
+                    onChange={(e) => setPaySupplierMethod(e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded-lg bg-white"
+                  >
+                    <option value="Tiền mặt">Tiền mặt</option>
+                    <option value="Chuyển khoản">Chuyển khoản</option>
+                    <option value="Thẻ ATM / Visa">Thẻ ATM / Visa</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-gray-700 font-semibold mb-1">Ngày thanh toán</label>
+                  <input
+                    type="date"
+                    value={paySupplierDate}
+                    onChange={(e) => setPaySupplierDate(e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-semibold mb-1">Ghi chú thanh toán</label>
+                <textarea
+                  rows={2}
+                  value={paySupplierNote}
+                  onChange={(e) => setPaySupplierNote(e.target.value)}
+                  className="w-full p-2 border border-gray-300 rounded-lg"
+                  placeholder="Nhập ghi chú hoặc lý do thanh toán..."
+                />
+              </div>
+
+              <div className="p-2.5 bg-gray-50 rounded-lg border border-gray-200 text-gray-700 flex justify-between font-semibold">
+                <span>Nợ còn lại sau thanh toán:</span>
+                <span className="font-mono text-red-600">
+                  {Math.max(
+                    0,
+                    (paySupplierTarget.currentDebt || 0) - (typeof paySupplierAmount === 'number' ? paySupplierAmount : parseFloat(paySupplierAmount) || 0)
+                  ).toLocaleString('vi-VN')}đ
+                </span>
+              </div>
+            </div>
+
+            <div className="p-4 bg-gray-50 border-t flex justify-end space-x-2">
+              <button
+                type="button"
+                onClick={() => setShowPaySupplierModal(false)}
+                className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const payVal = typeof paySupplierAmount === 'number' ? paySupplierAmount : parseFloat(paySupplierAmount) || 0;
+                  if (payVal <= 0) {
+                    alert('Vui lòng nhập số tiền thanh toán lớn hơn 0.');
+                    return;
+                  }
+                  if (onUpdateSupplier) {
+                    const updatedDebt = Math.max(0, (paySupplierTarget.currentDebt || 0) - payVal);
+                    onUpdateSupplier(paySupplierTarget.id, { currentDebt: updatedDebt });
+                  }
+                  if (onAddDebtPayment) {
+                    onAddDebtPayment({
+                      id: `DP${Date.now()}`,
+                      type: 'supplier_debt_pay',
+                      entityId: paySupplierTarget.id,
+                      entityName: paySupplierTarget.name,
+                      entityCode: paySupplierTarget.code,
+                      amount: payVal,
+                      paymentMethod: paySupplierMethod,
+                      date: `${paySupplierDate} ${new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`,
+                      note: paySupplierNote || `Thanh toán công nợ nhà cung cấp ${paySupplierTarget.name}`,
+                    });
+                  }
+                  alert(`Đã lưu thanh toán ${payVal.toLocaleString('vi-VN')}đ cho nhà cung cấp ${paySupplierTarget.name}.`);
+                  setShowPaySupplierModal(false);
+                }}
+                className="px-4 py-2 bg-[#0066ff] hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+              >
+                Xác nhận thanh toán
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Thu nợ Khách Hàng */}
+      {showPayCustomerModal && payCustomerTarget && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150 font-sans text-xs">
+            <div className="bg-[#0066ff] px-5 py-4 text-white flex items-center justify-between">
+              <h3 className="font-bold text-base">Thu nợ Khách Hàng</h3>
+              <button
+                type="button"
+                onClick={() => setShowPayCustomerModal(false)}
+                className="text-white/80 hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="bg-blue-50/60 rounded-xl p-3 border border-blue-100 text-xs space-y-1">
+                <div className="font-bold text-gray-900 text-sm">{payCustomerTarget.name}</div>
+                <div className="text-gray-500 font-mono">Mã KH: {payCustomerTarget.code}</div>
+                <div className="text-gray-600">
+                  Nợ hiện tại: <strong className="text-red-600 font-mono text-sm ml-1">{(payCustomerTarget.debt || 0).toLocaleString('vi-VN')}đ</strong>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-semibold mb-1">
+                  Số tiền thu (VNĐ) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  value={payCustomerAmount}
+                  onChange={(e) => setPayCustomerAmount(e.target.value)}
+                  className="w-full p-2.5 border border-gray-300 rounded-xl font-mono text-sm font-bold text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Nhập số tiền..."
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-gray-700 font-semibold mb-1">Hình thức thanh toán</label>
+                  <select
+                    value={payCustomerMethod}
+                    onChange={(e) => setPayCustomerMethod(e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded-lg bg-white"
+                  >
+                    <option value="Tiền mặt">Tiền mặt</option>
+                    <option value="Chuyển khoản">Chuyển khoản</option>
+                    <option value="Thẻ ATM / Visa">Thẻ ATM / Visa</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-gray-700 font-semibold mb-1">Ngày hạch toán</label>
+                  <input
+                    type="date"
+                    value={payCustomerDate}
+                    onChange={(e) => setPayCustomerDate(e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-semibold mb-1">Ghi chú thu nợ</label>
+                <textarea
+                  rows={2}
+                  value={payCustomerNote}
+                  onChange={(e) => setPayCustomerNote(e.target.value)}
+                  className="w-full p-2 border border-gray-300 rounded-lg"
+                  placeholder="Nhập ghi chú thu nợ..."
+                />
+              </div>
+
+              <div className="p-2.5 bg-gray-50 rounded-lg border border-gray-200 text-gray-700 flex justify-between font-semibold">
+                <span>Nợ còn lại sau thu nợ:</span>
+                <span className="font-mono text-red-600">
+                  {Math.max(
+                    0,
+                    (payCustomerTarget.debt || 0) - (typeof payCustomerAmount === 'number' ? payCustomerAmount : parseFloat(payCustomerAmount) || 0)
+                  ).toLocaleString('vi-VN')}đ
+                </span>
+              </div>
+            </div>
+
+            <div className="p-4 bg-gray-50 border-t flex justify-end space-x-2">
+              <button
+                type="button"
+                onClick={() => setShowPayCustomerModal(false)}
+                className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const payVal = typeof payCustomerAmount === 'number' ? payCustomerAmount : parseFloat(payCustomerAmount) || 0;
+                  if (payVal <= 0) {
+                    alert('Vui lòng nhập số tiền thu lớn hơn 0.');
+                    return;
+                  }
+                  if (onUpdateCustomer) {
+                    const updatedDebt = Math.max(0, (payCustomerTarget.debt || 0) - payVal);
+                    onUpdateCustomer(payCustomerTarget.id, { debt: updatedDebt });
+                  }
+                  if (onAddDebtPayment) {
+                    onAddDebtPayment({
+                      id: `DP${Date.now()}`,
+                      type: 'customer_debt_pay',
+                      entityId: payCustomerTarget.id,
+                      entityName: payCustomerTarget.name,
+                      entityCode: payCustomerTarget.code,
+                      amount: payVal,
+                      paymentMethod: payCustomerMethod,
+                      date: `${payCustomerDate} ${new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`,
+                      note: payCustomerNote || `Thu nợ công nợ khách hàng ${payCustomerTarget.name}`,
+                    });
+                  }
+                  alert(`Đã lưu thu nợ ${payVal.toLocaleString('vi-VN')}đ từ khách hàng ${payCustomerTarget.name}.`);
+                  setShowPayCustomerModal(false);
+                }}
+                className="px-4 py-2 bg-[#0066ff] hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+              >
+                Xác nhận thu nợ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Điều chỉnh công nợ Nhà Cung Cấp */}
+      {showAdjustSupplierDebtModal && adjustSupplierTarget && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="bg-gray-800 px-5 py-4 text-white flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Pencil className="w-5 h-5 text-white" />
+                <h3 className="font-bold text-base">Điều chỉnh công nợ Nhà Cung Cấp</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAdjustSupplierDebtModal(false)}
+                className="text-white/80 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs">
+              <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg space-y-1">
+                <div className="font-bold text-gray-900 text-sm">{adjustSupplierTarget.name}</div>
+                <div className="text-gray-500 font-mono">Mã NCC: {adjustSupplierTarget.code}</div>
+                <div className="text-gray-700 pt-1">
+                  Công nợ sổ sách hiện tại: <strong className="text-red-600 font-mono text-sm ml-1">{(adjustSupplierTarget.currentDebt || 0).toLocaleString('vi-VN')}đ</strong>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-bold mb-1">
+                  Giá trị công nợ mới (VNĐ) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  value={adjustSupplierNewDebt}
+                  onChange={(e) => setAdjustSupplierNewDebt(e.target.value)}
+                  className="w-full p-2.5 border border-gray-300 rounded-lg text-sm font-mono font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Nhập giá trị công nợ thực tế..."
+                />
+              </div>
+
+              <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 font-medium flex justify-between">
+                <span>Chênh lệch điều chỉnh:</span>
+                <span className="font-mono font-bold">
+                  {(() => {
+                    const newVal = typeof adjustSupplierNewDebt === 'number' ? adjustSupplierNewDebt : parseFloat(adjustSupplierNewDebt) || 0;
+                    const diff = newVal - (adjustSupplierTarget.currentDebt || 0);
+                    if (diff > 0) return `+${diff.toLocaleString('vi-VN')}đ (Tăng nợ)`;
+                    if (diff < 0) return `${diff.toLocaleString('vi-VN')}đ (Giảm nợ)`;
+                    return '0đ (Không đổi)';
+                  })()}
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-semibold mb-1">Lý do điều chỉnh</label>
+                <textarea
+                  rows={2}
+                  value={adjustSupplierNote}
+                  onChange={(e) => setAdjustSupplierNote(e.target.value)}
+                  className="w-full p-2 border border-gray-300 rounded-lg"
+                  placeholder="Nhập lý do hoặc biên bản điều chỉnh..."
+                />
+              </div>
+            </div>
+
+            <div className="p-4 bg-gray-50 border-t flex justify-end space-x-2">
+              <button
+                type="button"
+                onClick={() => setShowAdjustSupplierDebtModal(false)}
+                className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const newVal = typeof adjustSupplierNewDebt === 'number' ? adjustSupplierNewDebt : parseFloat(adjustSupplierNewDebt) || 0;
+                  if (onUpdateSupplier) {
+                    onUpdateSupplier(adjustSupplierTarget.id, { currentDebt: Math.max(0, newVal) });
+                    alert(`Đã lưu điều chỉnh công nợ nhà cung cấp ${adjustSupplierTarget.name} thành ${newVal.toLocaleString('vi-VN')}đ.`);
+                  }
+                  setShowAdjustSupplierDebtModal(false);
+                }}
+                className="px-4 py-2 bg-gray-800 hover:bg-gray-900 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+              >
+                Lưu điều chỉnh
               </button>
             </div>
           </div>

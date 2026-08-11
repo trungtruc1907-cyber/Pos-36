@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ViewMode, Product, Customer, Supplier, Order, ActivityLog, CartItem, PaymentMethod, PurchaseOrder } from './types';
+import { ViewMode, Product, Customer, Supplier, Order, ActivityLog, CartItem, PaymentMethod, PurchaseOrder, DebtPaymentRecord } from './types';
 import {
   subscribeProducts,
   addProduct,
@@ -60,6 +60,50 @@ export default function App() {
   const [purchases, setPurchases] = useState<PurchaseOrder[]>([]);
   const [stockChecks, setStockChecks] = useState<StockCheck[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
+  const [debtPayments, setDebtPayments] = useState<DebtPaymentRecord[]>(() => {
+    try {
+      const saved = localStorage.getItem('ct36_debt_payments');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error(e);
+    }
+    return [
+      {
+        id: 'DP001',
+        type: 'customer_debt_pay',
+        entityId: 'CUST001',
+        entityName: 'Anh Hoàng Minh - Thầu Thạch Thất',
+        entityCode: 'KH001',
+        amount: 1500000,
+        paymentMethod: 'Tiền mặt',
+        date: '10/08/2026 14:30',
+        note: 'Khách trả bớt tiền nợ đơn HD009720'
+      },
+      {
+        id: 'DP002',
+        type: 'supplier_debt_pay',
+        entityId: 'SUPP001',
+        entityName: 'Công Ty Chống Thấm Sika Việt Nam',
+        entityCode: 'NCC001',
+        amount: 2000000,
+        paymentMethod: 'Chuyển khoản',
+        date: '11/08/2026 09:15',
+        note: 'Chuyển khoản trả nợ nhập vật tư đợt 1'
+      }
+    ];
+  });
+
+  const handleAddDebtPayment = (record: DebtPaymentRecord) => {
+    setDebtPayments((prev) => {
+      const updated = [record, ...prev];
+      try {
+        localStorage.setItem('ct36_debt_payments', JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+      return updated;
+    });
+  };
 
   // Subscribe to Firebase Firestore for products real-time data
   useEffect(() => {
@@ -562,11 +606,12 @@ export default function App() {
               onAddSupplier={handleAddNewSupplier}
               onUpdateSupplier={handleUpdateSupplier}
               onDeleteSupplier={handleDeleteSupplier}
+              onAddDebtPayment={handleAddDebtPayment}
             />
           )}
 
           {(currentView === 'cashbook' || currentView === 'reports' || currentView === 'online' || currentView === 'tax') && (
-            <CashbookModal todayRevenue={todayRevenue} />
+            <CashbookModal todayRevenue={todayRevenue} orders={orders} purchases={purchases} debtPayments={debtPayments} />
           )}
         </div>
       )}

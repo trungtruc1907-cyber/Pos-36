@@ -216,3 +216,15 @@ export interface TopCustomerStat {
   name: string;
   value: number; // e.g. 26.0 tr
 }
+
+export interface DebtPaymentRecord {
+  id: string;
+  type: 'customer_debt_pay' | 'supplier_debt_pay';
+  entityId: string;
+  entityName: string;
+  entityCode?: string;
+  amount: number;
+  paymentMethod: 'Tiền mặt' | 'Chuyển khoản' | 'Thẻ ATM / Visa' | string;
+  date: string;
+  note?: string;
+}
