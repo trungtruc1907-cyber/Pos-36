@@ -85,24 +85,13 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Desktop Top Header Row */}
       <div className="hidden sm:flex items-center justify-between px-4 py-2 text-sm">
-        {/* Left: Brand Logo & Search */}
+        {/* Left: Brand Logo */}
         <div className="flex items-center space-x-4">
           <div 
             onClick={() => handleSelect('dashboard')}
             className="flex items-center space-x-2 cursor-pointer group hover:opacity-90 transition-opacity"
           >
             <Logo className="w-10 h-10" showText />
-          </div>
-
-          <div className="relative w-48 sm:w-64">
-            <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-400">
-              <Search className="w-4 h-4" />
-            </span>
-            <input
-              type="text"
-              placeholder="Tìm kiếm..."
-              className="w-full py-1.5 pl-9 pr-3 text-sm bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:border-[#1e0b54] focus:ring-1 focus:ring-[#1e0b54]"
-            />
           </div>
         </div>
 
