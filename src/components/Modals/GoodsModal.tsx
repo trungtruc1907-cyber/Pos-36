@@ -33,6 +33,7 @@ import { updateStockCheck } from '../../lib/stockCheckService';
 import { parseDateToMillis } from '../../utils/dateUtils';
 import { ImportExcelModal } from './ImportExcelModal';
 import { Pagination } from '../Pagination';
+import { ColumnToggle, ColumnOption } from '../ColumnToggle';
 
 interface GoodsModalProps {
   products: Product[];
@@ -47,6 +48,7 @@ interface GoodsModalProps {
 
 export interface StockLedgerEntry {
   id: string;
+  timestamp: number;
   time: string;
   docCode: string;
   docType: 'Bán hàng' | 'Nhập hàng' | 'Kiểm kho' | 'Trả hàng';
@@ -87,15 +89,7 @@ function buildStockLedger(
         (item.product?.name && item.product.name.toLowerCase() === p.name.toLowerCase())
     );
     if (matchItem) {
-      let ts = Date.now();
-      if (order.date) {
-        const parts = order.date.split(' ');
-        if (parts[0] && parts[0].includes('/')) {
-          const [d, m, y] = parts[0].split('/');
-          const time = parts[1] || '12:00';
-          ts = new Date(`${y}-${m}-${d}T${time}:00`).getTime() || Date.now();
-        }
-      }
+      const ts = parseDateToMillis(order.date, order.createdAt) || Date.now();
       rawEntries.push({
         id: `sale-${order.id}-${matchItem.product?.code || p.code}`,
         timestamp: ts,
@@ -130,15 +124,7 @@ function buildStockLedger(
     }
 
     if (matchQty > 0) {
-      let ts = Date.now();
-      if (pur.date) {
-        const parts = pur.date.split(' ');
-        if (parts[0] && parts[0].includes('/')) {
-          const [d, m, y] = parts[0].split('/');
-          const time = parts[1] || '12:00';
-          ts = new Date(`${y}-${m}-${d}T${time}:00`).getTime() || Date.now();
-        }
-      }
+      const ts = parseDateToMillis(pur.date, pur.createdAt) || Date.now();
       rawEntries.push({
         id: `pur-${pur.id}-${p.code}`,
         timestamp: ts,
@@ -159,7 +145,7 @@ function buildStockLedger(
   if (!hasImport && p.stock > 0 && purchases.length === 0) {
     rawEntries.push({
       id: `import-init-${p.id}`,
-      timestamp: new Date('2026-01-01T08:00:00').getTime(),
+      timestamp: parseDateToMillis('01/01/2026 08:00'),
       timeStr: '01/01/2026 08:00',
       docCode: `KK000001`,
       docType: 'Kiểm kho',
@@ -204,6 +190,7 @@ function buildStockLedger(
     const entry = rawEntries[i];
     calculated[i] = {
       id: entry.id,
+      timestamp: entry.timestamp,
       time: entry.timeStr,
       docCode: entry.docCode,
       docType: entry.docType,
@@ -217,8 +204,7 @@ function buildStockLedger(
     runningStock = runningStock - entry.changeQty;
   }
 
-  // Reverse so newest records appear on top
-  return calculated.reverse();
+  return calculated;
 }
 
 export const GoodsModal: React.FC<GoodsModalProps> = ({
@@ -267,9 +253,67 @@ export const GoodsModal: React.FC<GoodsModalProps> = ({
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'info' | 'description' | 'history' | 'stock' | 'channels'>('info');
 
+  // Column visibility states
+  const [productColumns, setProductColumns] = useState<ColumnOption[]>([
+    { key: 'loaiHang', label: 'Loại hàng', visible: true },
+    { key: 'nhomHang', label: 'Nhóm hàng', visible: true },
+    { key: 'code', label: 'Mã hàng', visible: true },
+    { key: 'maVach', label: 'Mã vạch', visible: true },
+    { key: 'name', label: 'Tên hàng', visible: true },
+    { key: 'brand', label: 'Thương hiệu', visible: true },
+    { key: 'price', label: 'Giá bán', visible: true },
+    { key: 'costPrice', label: 'Giá vốn', visible: true },
+    { key: 'stock', label: 'Tồn kho', visible: true },
+    { key: 'unit', label: 'ĐVT', visible: true },
+    { key: 'maDvtCoBan', label: 'Mã ĐVT Cơ bản', visible: true },
+    { key: 'quyDoi', label: 'Quy đổi', visible: true },
+    { key: 'imageUrl', label: 'Hình ảnh', visible: true },
+    { key: 'tichDiem', label: 'Tích điểm', visible: true },
+    { key: 'dangKinhDoanh', label: 'Đang kinh doanh', visible: true },
+    { key: 'duocBanTrucTiep', label: 'Bán trực tiếp', visible: true },
+    { key: 'description', label: 'Mô tả', visible: true },
+    { key: 'location', label: 'Vị trí', visible: true },
+  ]);
+
+  const [ledgerColumns, setLedgerColumns] = useState<ColumnOption[]>([
+    { key: 'time', label: 'Thời gian', visible: true },
+    { key: 'docCode', label: 'Mã chứng từ', visible: true },
+    { key: 'docType', label: 'Loại chứng từ', visible: true },
+    { key: 'partner', label: 'Đối tác / Tác nhân', visible: true },
+    { key: 'unitPrice', label: 'Đơn giá', visible: true },
+    { key: 'changeQty', label: 'Số lượng', visible: true },
+    { key: 'endingStock', label: 'Tồn cuối', visible: true },
+    { key: 'note', label: 'Ghi chú', visible: true },
+  ]);
+
+  const [stockCheckColumns, setStockCheckColumns] = useState<ColumnOption[]>([
+    { key: 'code', label: 'Mã kiểm kho', visible: true },
+    { key: 'date', label: 'Thời gian tạo', visible: true },
+    { key: 'timeEqualized', label: 'Thời gian cân bằng', visible: true },
+    { key: 'creator', label: 'Người tạo', visible: true },
+    { key: 'equalizer', label: 'Người cân bằng', visible: true },
+    { key: 'stockCount', label: 'Thực tế', visible: true },
+    { key: 'diffQty', label: 'Số lượng lệch', visible: true },
+    { key: 'diffAmount', label: 'Giá trị lệch', visible: true },
+    { key: 'status', label: 'Trạng thái', visible: true },
+  ]);
+
+  const toggleProductColumn = (key: string, visible: boolean) => {
+    setProductColumns((prev) => prev.map((c) => (c.key === key ? { ...c, visible } : c)));
+  };
+
+  const toggleLedgerColumn = (key: string, visible: boolean) => {
+    setLedgerColumns((prev) => prev.map((c) => (c.key === key ? { ...c, visible } : c)));
+  };
+
+  const toggleStockCheckColumn = (key: string, visible: boolean) => {
+    setStockCheckColumns((prev) => prev.map((c) => (c.key === key ? { ...c, visible } : c)));
+  };
+
   // Stock ledger filter states
   const [ledgerTypeFilter, setLedgerTypeFilter] = useState<string>('Tất cả');
   const [ledgerSearch, setLedgerSearch] = useState<string>('');
+  const [ledgerSortOrder, setLedgerSortOrder] = useState<'desc' | 'asc'>('desc');
   const [selectedDocDetail, setSelectedDocDetail] = useState<{ entry: StockLedgerEntry; product: Product } | null>(null);
 
   // Import Excel modal state
@@ -840,7 +884,7 @@ export const GoodsModal: React.FC<GoodsModalProps> = ({
         <>
 
       {/* Filter & Search Bar */}
-      <div className="bg-white rounded-lg shadow-sm p-3.5 border border-gray-100 flex flex-col md:flex-row gap-3 items-center">
+      <div className="bg-white rounded-lg shadow-sm p-3.5 border border-gray-100 flex flex-col md:flex-row gap-3 items-center justify-between">
         <div className="relative flex-1 w-full">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
@@ -855,7 +899,7 @@ export const GoodsModal: React.FC<GoodsModalProps> = ({
           />
         </div>
 
-        <div className="flex items-center space-x-3 w-full md:w-auto text-xs">
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto text-xs">
           <div className="flex items-center space-x-1.5">
             <Filter className="w-3.5 h-3.5 text-gray-400" />
             <span className="text-gray-500 font-medium whitespace-nowrap">Loại:</span>
@@ -892,46 +936,74 @@ export const GoodsModal: React.FC<GoodsModalProps> = ({
               ))}
             </select>
           </div>
+
+          <ColumnToggle
+            columns={productColumns}
+            onChange={toggleProductColumn}
+            onReset={() =>
+              setProductColumns([
+                { key: 'loaiHang', label: 'Loại hàng', visible: true },
+                { key: 'nhomHang', label: 'Nhóm hàng', visible: true },
+                { key: 'code', label: 'Mã hàng', visible: true },
+                { key: 'maVach', label: 'Mã vạch', visible: true },
+                { key: 'name', label: 'Tên hàng', visible: true },
+                { key: 'brand', label: 'Thương hiệu', visible: true },
+                { key: 'price', label: 'Giá bán', visible: true },
+                { key: 'costPrice', label: 'Giá vốn', visible: true },
+                { key: 'stock', label: 'Tồn kho', visible: true },
+                { key: 'unit', label: 'ĐVT', visible: true },
+                { key: 'maDvtCoBan', label: 'Mã ĐVT Cơ bản', visible: true },
+                { key: 'quyDoi', label: 'Quy đổi', visible: true },
+                { key: 'imageUrl', label: 'Hình ảnh', visible: true },
+                { key: 'tichDiem', label: 'Tích điểm', visible: true },
+                { key: 'dangKinhDoanh', label: 'Đang kinh doanh', visible: true },
+                { key: 'duocBanTrucTiep', label: 'Bán trực tiếp', visible: true },
+                { key: 'description', label: 'Mô tả', visible: true },
+                { key: 'location', label: 'Vị trí', visible: true },
+              ])
+            }
+          />
         </div>
       </div>
 
       {/* Products Table matching Excel columns exact structure */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden flex-1 flex flex-col">
         <div className="overflow-x-auto flex-1">
-          <table className="w-full text-left text-xs border-collapse min-w-[1500px]">
+          <table className="w-full text-left text-xs border-collapse min-w-[1200px]">
             <thead className="bg-sky-50/80 border-b border-sky-200 text-slate-700 font-bold text-[11px] uppercase tracking-wider sticky top-0 z-10">
               <tr>
-                <th className="p-2.5 border-r border-sky-200 whitespace-nowrap">Loại hàng</th>
-                <th className="p-2.5 border-r border-sky-200 whitespace-nowrap">Nhóm hàng(3 Cấp)</th>
-                <th className="p-2.5 border-r border-sky-200 whitespace-nowrap">Mã hàng</th>
-                <th className="p-2.5 border-r border-sky-200 whitespace-nowrap">Mã vạch</th>
-                <th className="p-2.5 border-r border-sky-200 whitespace-nowrap min-w-[250px]">Tên hàng</th>
-                <th className="p-2.5 border-r border-sky-200 whitespace-nowrap">Thương hiệu</th>
-                <th className="p-2.5 border-r border-sky-200 text-right whitespace-nowrap">Giá bán</th>
-                <th className="p-2.5 border-r border-sky-200 text-right whitespace-nowrap">Giá vốn</th>
-                <th className="p-2.5 border-r border-sky-200 text-right whitespace-nowrap">Tồn kho</th>
-                <th className="p-2.5 border-r border-sky-200 text-center whitespace-nowrap">ĐVT</th>
-                <th className="p-2.5 border-r border-sky-200 text-center whitespace-nowrap">Mã ĐVT Cơ bản</th>
-                <th className="p-2.5 border-r border-sky-200 text-right whitespace-nowrap">Quy đổi</th>
-                <th className="p-2.5 border-r border-sky-200 text-center whitespace-nowrap">Hình ảnh</th>
-                <th className="p-2.5 border-r border-sky-200 text-center whitespace-nowrap">Tích điểm</th>
-                <th className="p-2.5 border-r border-sky-200 text-center whitespace-nowrap">Đang kinh doanh</th>
-                <th className="p-2.5 border-r border-sky-200 text-center whitespace-nowrap">Bán trực tiếp</th>
-                <th className="p-2.5 border-r border-sky-200 whitespace-nowrap">Mô tả</th>
-                <th className="p-2.5 border-r border-sky-200 whitespace-nowrap">Vị trí</th>
+                {productColumns.find(c => c.key === 'loaiHang')?.visible && <th className="p-2.5 border-r border-sky-200 whitespace-nowrap">Loại hàng</th>}
+                {productColumns.find(c => c.key === 'nhomHang')?.visible && <th className="p-2.5 border-r border-sky-200 whitespace-nowrap">Nhóm hàng</th>}
+                {productColumns.find(c => c.key === 'code')?.visible && <th className="p-2.5 border-r border-sky-200 whitespace-nowrap">Mã hàng</th>}
+                {productColumns.find(c => c.key === 'maVach')?.visible && <th className="p-2.5 border-r border-sky-200 whitespace-nowrap">Mã vạch</th>}
+                {productColumns.find(c => c.key === 'name')?.visible && <th className="p-2.5 border-r border-sky-200 whitespace-nowrap min-w-[200px]">Tên hàng</th>}
+                {productColumns.find(c => c.key === 'brand')?.visible && <th className="p-2.5 border-r border-sky-200 whitespace-nowrap">Thương hiệu</th>}
+                {productColumns.find(c => c.key === 'price')?.visible && <th className="p-2.5 border-r border-sky-200 text-right whitespace-nowrap">Giá bán</th>}
+                {productColumns.find(c => c.key === 'costPrice')?.visible && <th className="p-2.5 border-r border-sky-200 text-right whitespace-nowrap">Giá vốn</th>}
+                {productColumns.find(c => c.key === 'stock')?.visible && <th className="p-2.5 border-r border-sky-200 text-right whitespace-nowrap">Tồn kho</th>}
+                {productColumns.find(c => c.key === 'unit')?.visible && <th className="p-2.5 border-r border-sky-200 text-center whitespace-nowrap">ĐVT</th>}
+                {productColumns.find(c => c.key === 'maDvtCoBan')?.visible && <th className="p-2.5 border-r border-sky-200 text-center whitespace-nowrap">Mã ĐVT Cơ bản</th>}
+                {productColumns.find(c => c.key === 'quyDoi')?.visible && <th className="p-2.5 border-r border-sky-200 text-right whitespace-nowrap">Quy đổi</th>}
+                {productColumns.find(c => c.key === 'imageUrl')?.visible && <th className="p-2.5 border-r border-sky-200 text-center whitespace-nowrap">Hình ảnh</th>}
+                {productColumns.find(c => c.key === 'tichDiem')?.visible && <th className="p-2.5 border-r border-sky-200 text-center whitespace-nowrap">Tích điểm</th>}
+                {productColumns.find(c => c.key === 'dangKinhDoanh')?.visible && <th className="p-2.5 border-r border-sky-200 text-center whitespace-nowrap">Đang kinh doanh</th>}
+                {productColumns.find(c => c.key === 'duocBanTrucTiep')?.visible && <th className="p-2.5 border-r border-sky-200 text-center whitespace-nowrap">Bán trực tiếp</th>}
+                {productColumns.find(c => c.key === 'description')?.visible && <th className="p-2.5 border-r border-sky-200 whitespace-nowrap">Mô tả</th>}
+                {productColumns.find(c => c.key === 'location')?.visible && <th className="p-2.5 border-r border-sky-200 whitespace-nowrap">Vị trí</th>}
                 <th className="p-2.5 text-center sticky right-0 bg-sky-50 shadow-md">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 text-gray-800">
               {paginatedProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={19} className="text-center py-12 text-gray-400 italic">
+                  <td colSpan={productColumns.filter(c => c.visible).length + 1} className="text-center py-12 text-gray-400 italic">
                     Không tìm thấy sản phẩm nào khớp với bộ lọc.
                   </td>
                 </tr>
               ) : (
                 paginatedProducts.map((p, idx) => {
                   const isExpanded = selectedProductId === p.id;
+                  const isVis = (key: string) => productColumns.find(c => c.key === key)?.visible ?? true;
                   return (
                     <React.Fragment key={p.id ? `${p.id}-${idx}` : `prod-${idx}`}>
                       <tr
@@ -942,72 +1014,108 @@ export const GoodsModal: React.FC<GoodsModalProps> = ({
                             : 'hover:bg-amber-50/40'
                         }`}
                       >
-                        <td className="p-2 border-r border-gray-100 whitespace-nowrap font-medium text-gray-700">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${p.loaiHang === 'Dịch vụ' ? 'bg-amber-100 text-amber-800' : 'bg-blue-50 text-blue-800'}`}>
-                            {p.loaiHang || 'Hàng hóa'}
-                          </span>
-                        </td>
-                        <td className="p-2 border-r border-gray-100 whitespace-nowrap text-gray-700">
-                          {p.nhomHang || p.category || ''}
-                        </td>
-                        <td className="p-2 border-r border-gray-100 font-mono font-bold text-[#1e0b54] whitespace-nowrap">
-                          {p.code}
-                        </td>
-                        <td className="p-2 border-r border-gray-100 font-mono text-gray-500 whitespace-nowrap">
-                          {p.maVach || ''}
-                        </td>
-                        <td className="p-2 border-r border-gray-100 font-bold text-gray-900">
-                          {p.name}
-                        </td>
-                        <td className="p-2 border-r border-gray-100 font-medium text-indigo-900 whitespace-nowrap">
-                          {p.brand || ''}
-                        </td>
-                        <td className="p-2 border-r border-gray-100 text-right font-extrabold text-[#1e0b54] font-mono whitespace-nowrap">
-                          {p.price ? `${p.price.toLocaleString('vi-VN')}đ` : '0đ'}
-                        </td>
-                        <td className="p-2 border-r border-gray-100 text-right text-gray-500 font-mono whitespace-nowrap">
-                          {p.costPrice ? `${p.costPrice.toLocaleString('vi-VN')}đ` : '0đ'}
-                        </td>
-                        <td className="p-2 border-r border-gray-100 text-right font-bold font-mono whitespace-nowrap">
-                          <span className={p.stock <= 0 ? 'text-red-500' : p.stock < 20 ? 'text-amber-600' : 'text-emerald-600'}>
-                            {p.stock}
-                          </span>
-                        </td>
-                        <td className="p-2 border-r border-gray-100 text-center whitespace-nowrap">
-                          <span className="bg-slate-100 px-2 py-0.5 rounded font-medium text-gray-700 text-[11px]">
-                            {p.unit}
-                          </span>
-                        </td>
-                        <td className="p-2 border-r border-gray-100 text-center font-mono text-gray-500 whitespace-nowrap">
-                          {p.maDvtCoBan || ''}
-                        </td>
-                        <td className="p-2 border-r border-gray-100 text-right font-mono text-gray-700 whitespace-nowrap">
-                          {p.quyDoi ?? 1.0}
-                        </td>
-                        <td className="p-2 border-r border-gray-100 text-center whitespace-nowrap text-[10px] text-blue-600">
-                          {p.imageUrl ? (
-                            <span className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-mono truncate max-w-[100px] inline-block">
-                              {p.imageUrl}
+                        {isVis('loaiHang') && (
+                          <td className="p-2 border-r border-gray-100 whitespace-nowrap font-medium text-gray-700">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${p.loaiHang === 'Dịch vụ' ? 'bg-amber-100 text-amber-800' : 'bg-blue-50 text-blue-800'}`}>
+                              {p.loaiHang || 'Hàng hóa'}
                             </span>
-                          ) : (
-                            <span className="text-gray-300">-</span>
-                          )}
-                        </td>
-                        <td className="p-2 border-r border-gray-100 text-center font-bold whitespace-nowrap">
-                          {p.tichDiem ? <span className="text-emerald-600">1</span> : <span className="text-gray-300">0</span>}
-                        </td>
-                        <td className="p-2 border-r border-gray-100 text-center font-bold whitespace-nowrap">
-                          {p.dangKinhDoanh ? <span className="text-emerald-600">1</span> : <span className="text-gray-300">0</span>}
-                        </td>
-                        <td className="p-2 border-r border-gray-100 text-center font-bold whitespace-nowrap">
-                          {p.duocBanTrucTiep ? <span className="text-emerald-600">1</span> : <span className="text-gray-300">0</span>}
-                        </td>
-                        <td className="p-2 border-r border-gray-100 text-gray-500 truncate max-w-[150px]">
-                          {p.description || ''}
-                        </td>
-                        <td className="p-2 border-r border-gray-100 text-gray-500 whitespace-nowrap">
-                          {p.location || ''}
-                        </td>
+                          </td>
+                        )}
+                        {isVis('nhomHang') && (
+                          <td className="p-2 border-r border-gray-100 whitespace-nowrap text-gray-700">
+                            {p.nhomHang || p.category || ''}
+                          </td>
+                        )}
+                        {isVis('code') && (
+                          <td className="p-2 border-r border-gray-100 font-mono font-bold text-[#1e0b54] whitespace-nowrap">
+                            {p.code}
+                          </td>
+                        )}
+                        {isVis('maVach') && (
+                          <td className="p-2 border-r border-gray-100 font-mono text-gray-500 whitespace-nowrap">
+                            {p.maVach || ''}
+                          </td>
+                        )}
+                        {isVis('name') && (
+                          <td className="p-2 border-r border-gray-100 font-bold text-gray-900">
+                            {p.name}
+                          </td>
+                        )}
+                        {isVis('brand') && (
+                          <td className="p-2 border-r border-gray-100 font-medium text-indigo-900 whitespace-nowrap">
+                            {p.brand || ''}
+                          </td>
+                        )}
+                        {isVis('price') && (
+                          <td className="p-2 border-r border-gray-100 text-right font-extrabold text-[#1e0b54] font-mono whitespace-nowrap">
+                            {p.price ? `${p.price.toLocaleString('vi-VN')}đ` : '0đ'}
+                          </td>
+                        )}
+                        {isVis('costPrice') && (
+                          <td className="p-2 border-r border-gray-100 text-right text-gray-500 font-mono whitespace-nowrap">
+                            {p.costPrice ? `${p.costPrice.toLocaleString('vi-VN')}đ` : '0đ'}
+                          </td>
+                        )}
+                        {isVis('stock') && (
+                          <td className="p-2 border-r border-gray-100 text-right font-bold font-mono whitespace-nowrap">
+                            <span className={p.stock <= 0 ? 'text-red-500' : p.stock < 20 ? 'text-amber-600' : 'text-emerald-600'}>
+                              {p.stock}
+                            </span>
+                          </td>
+                        )}
+                        {isVis('unit') && (
+                          <td className="p-2 border-r border-gray-100 text-center whitespace-nowrap">
+                            <span className="bg-slate-100 px-2 py-0.5 rounded font-medium text-gray-700 text-[11px]">
+                              {p.unit}
+                            </span>
+                          </td>
+                        )}
+                        {isVis('maDvtCoBan') && (
+                          <td className="p-2 border-r border-gray-100 text-center font-mono text-gray-500 whitespace-nowrap">
+                            {p.maDvtCoBan || ''}
+                          </td>
+                        )}
+                        {isVis('quyDoi') && (
+                          <td className="p-2 border-r border-gray-100 text-right font-mono text-gray-700 whitespace-nowrap">
+                            {p.quyDoi ?? 1.0}
+                          </td>
+                        )}
+                        {isVis('imageUrl') && (
+                          <td className="p-2 border-r border-gray-100 text-center whitespace-nowrap text-[10px] text-blue-600">
+                            {p.imageUrl ? (
+                              <span className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-mono truncate max-w-[100px] inline-block">
+                                {p.imageUrl}
+                              </span>
+                            ) : (
+                              <span className="text-gray-300">-</span>
+                            )}
+                          </td>
+                        )}
+                        {isVis('tichDiem') && (
+                          <td className="p-2 border-r border-gray-100 text-center font-bold whitespace-nowrap">
+                            {p.tichDiem ? <span className="text-emerald-600">1</span> : <span className="text-gray-300">0</span>}
+                          </td>
+                        )}
+                        {isVis('dangKinhDoanh') && (
+                          <td className="p-2 border-r border-gray-100 text-center font-bold whitespace-nowrap">
+                            {p.dangKinhDoanh ? <span className="text-emerald-600">1</span> : <span className="text-gray-300">0</span>}
+                          </td>
+                        )}
+                        {isVis('duocBanTrucTiep') && (
+                          <td className="p-2 border-r border-gray-100 text-center font-bold whitespace-nowrap">
+                            {p.duocBanTrucTiep ? <span className="text-emerald-600">1</span> : <span className="text-gray-300">0</span>}
+                          </td>
+                        )}
+                        {isVis('description') && (
+                          <td className="p-2 border-r border-gray-100 text-gray-500 truncate max-w-[150px]">
+                            {p.description || ''}
+                          </td>
+                        )}
+                        {isVis('location') && (
+                          <td className="p-2 border-r border-gray-100 text-gray-500 whitespace-nowrap">
+                            {p.location || ''}
+                          </td>
+                        )}
                         <td className="p-2 text-center sticky right-0 bg-white shadow-md whitespace-nowrap">
                           <div className="flex items-center justify-center space-x-1" onClick={(e) => e.stopPropagation()}>
                             <button
@@ -1029,7 +1137,7 @@ export const GoodsModal: React.FC<GoodsModalProps> = ({
                       {/* Expanded Detail Panel matching reference screenshot */}
                       {isExpanded && (
                         <tr className="bg-white">
-                          <td colSpan={19} className="p-0 border-b-2 border-blue-500 shadow-md">
+                          <td colSpan={productColumns.filter(c => c.visible).length + 1} className="p-0 border-b-2 border-blue-500 shadow-md">
                             <div className="bg-white rounded-b-lg border-x border-b border-gray-200 p-4 space-y-4">
                               {/* Top Bar inside Detail View (matching image header format) */}
                               <div className="bg-white px-3 py-2 border-b border-gray-200 flex flex-wrap items-center justify-between text-xs gap-3">
@@ -1233,22 +1341,29 @@ export const GoodsModal: React.FC<GoodsModalProps> = ({
                               {activeTab === 'history' && (() => {
                                 const ledger = buildStockLedger(p, orders, purchases, stockChecks);
                                 
-                                const filteredLedger = ledger.filter((entry) => {
-                                  const matchType =
-                                    ledgerTypeFilter === 'Tất cả' ||
-                                    (ledgerTypeFilter === 'Bán hàng' && (entry.docType === 'Bán hàng' || entry.docType === 'Trả hàng')) ||
-                                    (ledgerTypeFilter === 'Nhập hàng' && entry.docType === 'Nhập hàng') ||
-                                    (ledgerTypeFilter === 'Kiểm kho' && entry.docType === 'Kiểm kho');
-                                  
-                                  const query = ledgerSearch.trim().toLowerCase();
-                                  const matchSearch =
-                                    !query ||
-                                    entry.docCode.toLowerCase().includes(query) ||
-                                    entry.partner.toLowerCase().includes(query) ||
-                                    entry.note.toLowerCase().includes(query);
+                                const filteredLedger = ledger
+                                  .filter((entry) => {
+                                    const matchType =
+                                      ledgerTypeFilter === 'Tất cả' ||
+                                      (ledgerTypeFilter === 'Bán hàng' && (entry.docType === 'Bán hàng' || entry.docType === 'Trả hàng')) ||
+                                      (ledgerTypeFilter === 'Nhập hàng' && entry.docType === 'Nhập hàng') ||
+                                      (ledgerTypeFilter === 'Kiểm kho' && entry.docType === 'Kiểm kho');
+                                    
+                                    const query = ledgerSearch.trim().toLowerCase();
+                                    const matchSearch =
+                                      !query ||
+                                      entry.docCode.toLowerCase().includes(query) ||
+                                      entry.partner.toLowerCase().includes(query) ||
+                                      entry.note.toLowerCase().includes(query);
 
-                                  return matchType && matchSearch;
-                                });
+                                    return matchType && matchSearch;
+                                  })
+                                  .sort((a, b) => {
+                                    if (ledgerSortOrder === 'asc') {
+                                      return a.timestamp - b.timestamp;
+                                    }
+                                    return b.timestamp - a.timestamp;
+                                  });
 
                                 const totalImport = ledger
                                   .filter((e) => e.changeQty > 0)
@@ -1262,18 +1377,32 @@ export const GoodsModal: React.FC<GoodsModalProps> = ({
                                   <div className="space-y-3.5 text-xs">
                                     {/* Top Filter and Search Controls */}
                                     <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
-                                      <div className="flex items-center space-x-2">
-                                        <span className="font-semibold text-gray-700 whitespace-nowrap">Loại chứng từ:</span>
-                                        <select
-                                          value={ledgerTypeFilter}
-                                          onChange={(e) => setLedgerTypeFilter(e.target.value)}
-                                          className="border border-gray-300 rounded px-2 py-1 text-xs bg-white font-medium focus:outline-none focus:border-blue-600"
-                                        >
-                                          <option value="Tất cả">Tất cả chứng từ</option>
-                                          <option value="Bán hàng">Bán hàng (Xuất kho)</option>
-                                          <option value="Nhập hàng">Nhập hàng (Nhập kho)</option>
-                                          <option value="Kiểm kho">Kiểm kho (Cân bằng)</option>
-                                        </select>
+                                      <div className="flex flex-wrap items-center gap-3">
+                                        <div className="flex items-center space-x-1.5">
+                                          <span className="font-semibold text-gray-700 whitespace-nowrap">Loại chứng từ:</span>
+                                          <select
+                                            value={ledgerTypeFilter}
+                                            onChange={(e) => setLedgerTypeFilter(e.target.value)}
+                                            className="border border-gray-300 rounded px-2 py-1 text-xs bg-white font-medium focus:outline-none focus:border-blue-600 cursor-pointer"
+                                          >
+                                            <option value="Tất cả">Tất cả chứng từ</option>
+                                            <option value="Bán hàng">Bán hàng (Xuất kho)</option>
+                                            <option value="Nhập hàng">Nhập hàng (Nhập kho)</option>
+                                            <option value="Kiểm kho">Kiểm kho (Cân bằng)</option>
+                                          </select>
+                                        </div>
+
+                                        <div className="flex items-center space-x-1.5">
+                                          <span className="font-semibold text-gray-700 whitespace-nowrap">Thời gian:</span>
+                                          <select
+                                            value={ledgerSortOrder}
+                                            onChange={(e) => setLedgerSortOrder(e.target.value as 'desc' | 'asc')}
+                                            className="border border-gray-300 rounded px-2 py-1 text-xs bg-white font-medium focus:outline-none focus:border-blue-600 cursor-pointer font-sans"
+                                          >
+                                            <option value="desc">Mới nhất trước (Gần đây → Cũ)</option>
+                                            <option value="asc">Cũ nhất trước (Cũ → Gần đây)</option>
+                                          </select>
+                                        </div>
                                       </div>
 
                                       <div className="relative flex-1 max-w-xs">
@@ -1323,22 +1452,22 @@ export const GoodsModal: React.FC<GoodsModalProps> = ({
                                       </div>
                                     </div>
 
-                                    {/* Ledger Table */}
+                                    {/* Ledger Table - Fitted Column Widths */}
                                     <div className="overflow-x-auto rounded-lg border border-gray-200">
-                                      <table className="w-full text-left border-collapse min-w-[700px]">
-                                        <thead className="bg-gray-100 text-gray-700 font-bold border-b border-gray-200">
+                                      <table className="w-full text-left border-collapse table-auto">
+                                        <thead className="bg-gray-100 text-gray-700 font-bold border-b border-gray-200 text-xs">
                                           <tr>
-                                            <th className="p-2.5 border-r border-gray-200 whitespace-nowrap">Thời gian</th>
-                                            <th className="p-2.5 border-r border-gray-200 whitespace-nowrap">Mã chứng từ</th>
-                                            <th className="p-2.5 border-r border-gray-200 whitespace-nowrap">Loại chứng từ</th>
-                                            <th className="p-2.5 border-r border-gray-200 whitespace-nowrap">Đối tác / Tác nhân</th>
-                                            <th className="p-2.5 border-r border-gray-200 text-right whitespace-nowrap">Đơn giá</th>
-                                            <th className="p-2.5 border-r border-gray-200 text-right whitespace-nowrap">Số lượng</th>
-                                            <th className="p-2.5 border-r border-gray-200 text-right whitespace-nowrap">Tồn cuối</th>
-                                            <th className="p-2.5 whitespace-nowrap">Ghi chú</th>
+                                            {ledgerColumns.find(c => c.key === 'time')?.visible && <th className="p-2 border-r border-gray-200 whitespace-nowrap w-[120px] min-w-[120px]">Thời gian</th>}
+                                            {ledgerColumns.find(c => c.key === 'docCode')?.visible && <th className="p-2 border-r border-gray-200 whitespace-nowrap w-[95px] min-w-[95px]">Mã chứng từ</th>}
+                                            {ledgerColumns.find(c => c.key === 'docType')?.visible && <th className="p-2 border-r border-gray-200 whitespace-nowrap w-[105px] min-w-[105px]">Loại chứng từ</th>}
+                                            {ledgerColumns.find(c => c.key === 'partner')?.visible && <th className="p-2 border-r border-gray-200 whitespace-nowrap w-[120px] max-w-[120px]">Đối tác / Tác nhân</th>}
+                                            {ledgerColumns.find(c => c.key === 'unitPrice')?.visible && <th className="p-2 border-r border-gray-200 text-right whitespace-nowrap w-[90px] min-w-[90px]">Đơn giá</th>}
+                                            {ledgerColumns.find(c => c.key === 'changeQty')?.visible && <th className="p-2 border-r border-gray-200 text-right whitespace-nowrap w-[70px] min-w-[70px]">Số lượng</th>}
+                                            {ledgerColumns.find(c => c.key === 'endingStock')?.visible && <th className="p-2 border-r border-gray-200 text-right whitespace-nowrap w-[75px] min-w-[75px]">Tồn cuối</th>}
+                                            {ledgerColumns.find(c => c.key === 'note')?.visible && <th className="p-2 whitespace-nowrap w-[120px] max-w-[120px]">Ghi chú</th>}
                                           </tr>
                                         </thead>
-                                        <tbody className="divide-y divide-gray-200 text-gray-700 bg-white">
+                                        <tbody className="divide-y divide-gray-200 text-gray-700 bg-white text-xs">
                                           {filteredLedger.length === 0 ? (
                                             <tr>
                                               <td colSpan={8} className="text-center py-8 text-gray-400 italic">
@@ -1354,10 +1483,10 @@ export const GoodsModal: React.FC<GoodsModalProps> = ({
 
                                               return (
                                                 <tr key={entry.id} className="hover:bg-slate-50 transition-colors">
-                                                  <td className="p-2.5 border-r border-gray-100 font-mono text-gray-600 text-[11px] whitespace-nowrap">
+                                                  <td className="p-2 border-r border-gray-100 font-mono text-gray-600 text-[11px] whitespace-nowrap w-[120px]">
                                                     {entry.time}
                                                   </td>
-                                                  <td className="p-2.5 border-r border-gray-100 font-mono font-bold text-blue-600 whitespace-nowrap">
+                                                  <td className="p-2 border-r border-gray-100 font-mono font-bold text-blue-600 whitespace-nowrap w-[95px]">
                                                     <button
                                                       type="button"
                                                       onClick={(e) => {
@@ -1370,45 +1499,45 @@ export const GoodsModal: React.FC<GoodsModalProps> = ({
                                                       {entry.docCode}
                                                     </button>
                                                   </td>
-                                                  <td className="p-2.5 border-r border-gray-100 whitespace-nowrap">
+                                                  <td className="p-2 border-r border-gray-100 whitespace-nowrap w-[105px]">
                                                     {isSale && (
-                                                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                                                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
                                                         <ShoppingCart className="w-3 h-3 mr-1" /> Bán hàng
                                                       </span>
                                                     )}
                                                     {isImport && (
-                                                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                                                         <Truck className="w-3 h-3 mr-1" /> Nhập hàng
                                                       </span>
                                                     )}
                                                     {isCheck && (
-                                                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
                                                         <ClipboardCheck className="w-3 h-3 mr-1" /> Kiểm kho
                                                       </span>
                                                     )}
                                                     {isReturn && (
-                                                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                                                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
                                                         <RefreshCw className="w-3 h-3 mr-1" /> Trả hàng
                                                       </span>
                                                     )}
                                                   </td>
-                                                  <td className="p-2.5 border-r border-gray-100 font-medium text-gray-900">
+                                                  <td className="p-2 border-r border-gray-100 font-medium text-gray-900 truncate w-[120px] max-w-[120px]" title={entry.partner}>
                                                     {entry.partner}
                                                   </td>
-                                                  <td className="p-2.5 border-r border-gray-100 text-right font-mono text-gray-800 whitespace-nowrap">
+                                                  <td className="p-2 border-r border-gray-100 text-right font-mono text-gray-800 whitespace-nowrap w-[90px]">
                                                     {entry.unitPrice ? `${entry.unitPrice.toLocaleString('vi-VN')}đ` : '0đ'}
                                                   </td>
-                                                  <td className="p-2.5 border-r border-gray-100 text-right font-mono font-extrabold whitespace-nowrap">
+                                                  <td className="p-2 border-r border-gray-100 text-right font-mono font-extrabold whitespace-nowrap w-[70px]">
                                                     {entry.changeQty > 0 ? (
                                                       <span className="text-emerald-600">+{entry.changeQty}</span>
                                                     ) : (
                                                       <span className="text-rose-600">{entry.changeQty}</span>
                                                     )}
                                                   </td>
-                                                  <td className="p-2.5 border-r border-gray-100 text-right font-mono font-bold text-gray-900 whitespace-nowrap">
+                                                  <td className="p-2 border-r border-gray-100 text-right font-mono font-bold text-gray-900 whitespace-nowrap w-[75px]">
                                                     {entry.endingStock}
                                                   </td>
-                                                  <td className="p-2.5 text-gray-500 max-w-[200px] truncate">
+                                                  <td className="p-2 text-gray-500 w-[120px] max-w-[120px] truncate" title={entry.note}>
                                                     {entry.note}
                                                   </td>
                                                 </tr>

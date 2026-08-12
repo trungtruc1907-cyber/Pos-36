@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Order, PurchaseOrder, ViewMode, Product, Supplier, PaymentMethod, Customer } from '../../types';
 import { parseDateToMillis } from '../../utils/dateUtils';
 import { Pagination } from '../Pagination';
+import { ColumnToggle, ColumnOption } from '../ColumnToggle';
 import { 
   FileText, 
   Search, 
@@ -73,6 +74,35 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
   onUpdateSupplier,
 }) => {
   const [search, setSearch] = useState('');
+
+  const [orderColumns, setOrderColumns] = useState<ColumnOption[]>([
+    { key: 'orderCode', label: 'Mã hóa đơn', visible: true },
+    { key: 'date', label: 'Thời gian', visible: true },
+    { key: 'returnCode', label: 'Mã trả hàng', visible: true },
+    { key: 'customerCode', label: 'Mã KH', visible: true },
+    { key: 'customerName', label: 'Khách hàng', visible: true },
+    { key: 'subtotal', label: 'Tổng tiền hàng', visible: true },
+    { key: 'discount', label: 'Giảm giá', visible: true },
+    { key: 'netTotal', label: 'Tổng sau giảm giá', visible: true },
+    { key: 'paid', label: 'Khách đã trả', visible: true },
+  ]);
+
+  const [purchaseColumns, setPurchaseColumns] = useState<ColumnOption[]>([
+    { key: 'code', label: 'Mã phiếu', visible: true },
+    { key: 'date', label: 'Thời gian', visible: true },
+    { key: 'supplierName', label: 'Nhà cung cấp', visible: true },
+    { key: 'itemsCount', label: 'Số mặt hàng', visible: true },
+    { key: 'totalAmount', label: 'Tổng tiền', visible: true },
+    { key: 'status', label: 'Trạng thái', visible: true },
+  ]);
+
+  const toggleOrdCol = (key: string) => {
+    setOrderColumns((prev) => prev.map((c) => (c.key === key ? { ...c, visible: !c.visible } : c)));
+  };
+
+  const togglePurCol = (key: string) => {
+    setPurchaseColumns((prev) => prev.map((c) => (c.key === key ? { ...c, visible: !c.visible } : c)));
+  };
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [orderTab, setOrderTab] = useState<'info' | 'payments'>('info');
   const [editingNotes, setEditingNotes] = useState<Record<string, string>>({});
@@ -1177,10 +1207,15 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
                       type="text"
                       value={newSupplier}
                       onChange={(e) => {
-                        setNewSupplier(e.target.value);
-                        setShowSuppDropdown(true);
+                        const val = e.target.value;
+                        setNewSupplier(val);
+                        setShowSuppDropdown(val.trim().length > 0);
                       }}
-                      onFocus={() => setShowSuppDropdown(true)}
+                      onFocus={() => {
+                        if (newSupplier.trim().length > 0) {
+                          setShowSuppDropdown(true);
+                        }
+                      }}
                       placeholder="Tìm kiếm nhà cung cấp (F4)"
                       className="w-full text-xs font-semibold text-gray-800 placeholder-gray-400 bg-transparent focus:outline-none"
                     />
@@ -1195,7 +1230,7 @@ export const OrdersModal: React.FC<OrdersModalProps> = ({
                   </button>
                 </div>
 
-                {showSuppDropdown && (
+                {showSuppDropdown && newSupplier.trim().length > 0 && (
                   <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-50 max-h-56 overflow-y-auto">
                     {suppliers.filter(
                       (s) =>

@@ -159,6 +159,9 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
   // Selected order for detailed modal view
   const [selectedOrderForDetail, setSelectedOrderForDetail] = useState<Order | null>(null);
 
+  // Selected purchase order for detailed modal view
+  const [selectedPurchaseForDetail, setSelectedPurchaseForDetail] = useState<PurchaseOrder | null>(null);
+
   // Form states for Customer
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -788,7 +791,13 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
                                         matchedPurchases.map((p, pIdx) => (
                                           <tr key={p.id ? `${p.id}-m-${pIdx}` : `mp-${pIdx}`} className="hover:bg-gray-50">
                                             <td className="p-2.5 font-mono text-blue-600 font-bold">
-                                              {p.code}
+                                              <button
+                                                type="button"
+                                                onClick={() => setSelectedPurchaseForDetail(p)}
+                                                className="hover:underline text-blue-600 font-bold font-mono cursor-pointer text-left"
+                                              >
+                                                {p.code}
+                                              </button>
                                             </td>
                                             <td className="p-2.5 font-mono text-gray-600">{p.date}</td>
                                             <td className="p-2.5 text-gray-800 font-medium">{p.creator || 'Chống Thấm 36'}</td>
@@ -810,7 +819,40 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
                                       ) : s.totalPurchased > 0 ? (
                                         <tr className="hover:bg-gray-50">
                                           <td className="p-2.5 font-mono text-blue-600 font-bold">
-                                            PN0000{String((s.id.charCodeAt(0) % 90) + 10)}
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                const pCode = `PN0000${String((s.id.charCodeAt(0) % 90) + 10)}`;
+                                                const dummyPurchase: PurchaseOrder = {
+                                                  id: `p-gen-${s.id}`,
+                                                  code: pCode,
+                                                  date: '27/06/2026 10:30',
+                                                  supplierName: s.name,
+                                                  supplierCode: s.code,
+                                                  creator: 'Chống Thấm 36',
+                                                  itemsCount: 1,
+                                                  totalAmount: s.totalPurchased || 0,
+                                                  paidAmount: Math.max(0, (s.totalPurchased || 0) - (s.currentDebt || 0)),
+                                                  status: 'Đã nhập hàng',
+                                                  paymentMethod: 'Tiền mặt',
+                                                  type: 'import',
+                                                  items: [
+                                                    {
+                                                      productCode: 'SP00102',
+                                                      productName: 'Vật tư chống thấm tổng hợp (Nhập kho)',
+                                                      quantity: 1,
+                                                      unitPrice: s.totalPurchased || 0,
+                                                      importPrice: s.totalPurchased || 0,
+                                                      discount: 0,
+                                                    },
+                                                  ],
+                                                };
+                                                setSelectedPurchaseForDetail(dummyPurchase);
+                                              }}
+                                              className="hover:underline text-blue-600 font-bold font-mono cursor-pointer text-left"
+                                            >
+                                              PN0000{String((s.id.charCodeAt(0) % 90) + 10)}
+                                            </button>
                                           </td>
                                           <td className="p-2.5 font-mono text-gray-600">27/06/2026 10:30</td>
                                           <td className="p-2.5 text-gray-800 font-medium">Chống Thấm 36</td>
@@ -935,7 +977,15 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
                                           const remaining = p.totalAmount - (p.paidAmount || 0);
                                           return (
                                             <tr key={p.id ? `${p.id}-u-${pIdx}` : `up-${pIdx}`} className="hover:bg-gray-50">
-                                              <td className="p-2.5 font-mono text-blue-600 font-bold">{p.code}</td>
+                                              <td className="p-2.5 font-mono text-blue-600 font-bold">
+                                                <button
+                                                  type="button"
+                                                  onClick={() => setSelectedPurchaseForDetail(p)}
+                                                  className="hover:underline text-blue-600 font-bold font-mono cursor-pointer text-left"
+                                                >
+                                                  {p.code}
+                                                </button>
+                                              </td>
                                               <td className="p-2.5 font-mono text-gray-600">{p.date}</td>
                                               <td className="p-2.5 text-gray-800 font-medium">Phiếu nhập hàng chưa thanh toán đủ</td>
                                               <td className="p-2.5 text-right font-mono font-bold text-gray-900">
@@ -953,7 +1003,40 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
                                       ) : s.currentDebt > 0 ? (
                                         <tr className="hover:bg-gray-50">
                                           <td className="p-2.5 font-mono text-blue-600 font-bold">
-                                            PN0000{String((s.id.charCodeAt(0) % 90) + 10)}
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                const pCode = `PN0000${String((s.id.charCodeAt(0) % 90) + 10)}`;
+                                                const dummyPurchase: PurchaseOrder = {
+                                                  id: `p-gen-${s.id}`,
+                                                  code: pCode,
+                                                  date: '27/06/2026 10:30',
+                                                  supplierName: s.name,
+                                                  supplierCode: s.code,
+                                                  creator: 'Chống Thấm 36',
+                                                  itemsCount: 1,
+                                                  totalAmount: s.totalPurchased || 0,
+                                                  paidAmount: Math.max(0, (s.totalPurchased || 0) - (s.currentDebt || 0)),
+                                                  status: 'Đã nhập hàng',
+                                                  paymentMethod: 'Tiền mặt',
+                                                  type: 'import',
+                                                  items: [
+                                                    {
+                                                      productCode: 'SP00102',
+                                                      productName: 'Vật tư chống thấm tổng hợp (Nhập kho)',
+                                                      quantity: 1,
+                                                      unitPrice: s.totalPurchased || 0,
+                                                      importPrice: s.totalPurchased || 0,
+                                                      discount: 0,
+                                                    },
+                                                  ],
+                                                };
+                                                setSelectedPurchaseForDetail(dummyPurchase);
+                                              }}
+                                              className="hover:underline text-blue-600 font-bold font-mono cursor-pointer text-left"
+                                            >
+                                              PN0000{String((s.id.charCodeAt(0) % 90) + 10)}
+                                            </button>
                                           </td>
                                           <td className="p-2.5 font-mono text-gray-600">27/06/2026 10:30</td>
                                           <td className="p-2.5 text-gray-800 font-medium">Phiếu nhập hàng chưa thanh toán đủ</td>
@@ -1963,6 +2046,166 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
                 type="button"
                 onClick={() => setSelectedOrderForDetail(null)}
                 className="px-4 py-1.5 bg-[#1e0b54] hover:bg-[#15073c] text-white rounded text-xs font-bold transition-colors"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Chi tiết Phiếu nhập/trả hàng khi click vào mã phiếu */}
+      {selectedPurchaseForDetail && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-xl overflow-hidden border border-gray-200 animate-in fade-in zoom-in duration-150">
+            <div className="bg-[#1e0b54] text-white px-5 py-3 flex justify-between items-center">
+              <div className="flex items-center space-x-2">
+                <Receipt className="w-5 h-5 text-blue-300" />
+                <span className="font-bold text-sm">
+                  Chi tiết {selectedPurchaseForDetail.type === 'return' ? 'phiếu trả hàng nhập' : 'phiếu nhập hàng'} {selectedPurchaseForDetail.code}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedPurchaseForDetail(null)}
+                className="text-white/80 hover:text-white p-1 rounded-full hover:bg-white/10 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 text-xs space-y-4 max-h-[75vh] overflow-y-auto">
+              <div className="grid grid-cols-2 gap-3 bg-gray-50 p-3 rounded border border-gray-200">
+                <div>
+                  <p className="text-gray-500">Mã phiếu:</p>
+                  <p className="font-bold font-mono text-blue-600 text-sm">{selectedPurchaseForDetail.code}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500">Thời gian tạo:</p>
+                  <p className="font-medium text-gray-800">{selectedPurchaseForDetail.date}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500">Nhà cung cấp:</p>
+                  <p className="font-bold text-gray-900">{selectedPurchaseForDetail.supplierName || 'Chưa chọn nhà cung cấp'}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500">Người tạo:</p>
+                  <p className="font-medium text-gray-800">{selectedPurchaseForDetail.creator || 'Chống Thấm 36'}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500">Trạng thái:</p>
+                  <p className="font-bold text-emerald-600">
+                    {selectedPurchaseForDetail.status || 'Đã hoàn thành'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-gray-500">Hình thức thanh toán:</p>
+                  <p className="font-medium text-gray-800">
+                    {selectedPurchaseForDetail.paymentMethod === 'transfer' ? 'Chuyển khoản ngân hàng' : 'Tiền mặt'}
+                  </p>
+                </div>
+              </div>
+
+              {selectedPurchaseForDetail.note && (
+                <div className="p-2.5 bg-amber-50 border border-amber-200 rounded text-amber-900 font-medium">
+                  <span className="font-bold">Ghi chú:</span> {selectedPurchaseForDetail.note}
+                </div>
+              )}
+
+              <div>
+                <h4 className="font-bold text-gray-700 mb-2">
+                  {selectedPurchaseForDetail.type === 'return' ? 'Sản phẩm trả lại:' : 'Sản phẩm nhập kho:'}
+                </h4>
+                <div className="border border-gray-200 rounded overflow-hidden">
+                  <table className="w-full text-left">
+                    <thead className="bg-gray-100 text-gray-600 font-semibold border-b">
+                      <tr>
+                        <th className="p-2">Tên sản phẩm</th>
+                        <th className="p-2 text-center">ĐVT</th>
+                        <th className="p-2 text-center">SL</th>
+                        <th className="p-2 text-right">Giá nhập</th>
+                        <th className="p-2 text-right">Thành tiền</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {selectedPurchaseForDetail.items && selectedPurchaseForDetail.items.length > 0 ? (
+                        selectedPurchaseForDetail.items.map((item, idx) => (
+                          <tr key={idx} className="hover:bg-gray-50">
+                            <td className="p-2 font-medium text-gray-800">
+                              {item.productName || 'Sản phẩm'}
+                              {item.productCode && <span className="font-mono text-[10px] text-gray-400 block">{item.productCode}</span>}
+                            </td>
+                            <td className="p-2 text-center text-gray-500">{item.unit || 'Bao/Can'}</td>
+                            <td className="p-2 text-center font-bold font-mono">{item.quantity}</td>
+                            <td className="p-2 text-right font-mono">{((item.importPrice || item.unitPrice || 0)).toLocaleString('vi-VN')}đ</td>
+                            <td className="p-2 text-right font-bold font-mono text-gray-900">
+                              {((item.quantity || 0) * (item.importPrice || item.unitPrice || 0) - (item.discount || 0)).toLocaleString('vi-VN')}đ
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr className="hover:bg-gray-50">
+                          <td className="p-2 font-medium text-gray-800">Vật tư chống thấm nhập kho</td>
+                          <td className="p-2 text-center text-gray-500">Lô</td>
+                          <td className="p-2 text-center font-bold font-mono">{selectedPurchaseForDetail.itemsCount || 1}</td>
+                          <td className="p-2 text-right font-mono">{(selectedPurchaseForDetail.totalAmount || 0).toLocaleString('vi-VN')}đ</td>
+                          <td className="p-2 text-right font-bold font-mono text-gray-900">
+                            {(selectedPurchaseForDetail.totalAmount || 0).toLocaleString('vi-VN')}đ
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="space-y-1.5 pt-2 border-t border-gray-200 text-right">
+                <div className="flex justify-between text-gray-600">
+                  <span>Tổng tiền hàng:</span>
+                  <span className="font-mono font-medium">
+                    {((selectedPurchaseForDetail.totalAmount || 0) + (selectedPurchaseForDetail.discount || 0)).toLocaleString('vi-VN')}đ
+                  </span>
+                </div>
+                {selectedPurchaseForDetail.discount ? (
+                  <div className="flex justify-between text-gray-600">
+                    <span>Giảm giá:</span>
+                    <span className="font-mono text-rose-600">-{(selectedPurchaseForDetail.discount || 0).toLocaleString('vi-VN')}đ</span>
+                  </div>
+                ) : null}
+                <div className="flex justify-between text-sm font-bold text-gray-900 pt-1 border-t border-gray-200">
+                  <span>Tổng cộng giá trị phiếu:</span>
+                  <span className="font-mono text-blue-600">{(selectedPurchaseForDetail.totalAmount || 0).toLocaleString('vi-VN')}đ</span>
+                </div>
+                <div className="flex justify-between text-gray-600">
+                  <span>Đã thanh toán:</span>
+                  <span className="font-mono text-emerald-700 font-bold">{(selectedPurchaseForDetail.paidAmount || 0).toLocaleString('vi-VN')}đ</span>
+                </div>
+                {((selectedPurchaseForDetail.totalAmount || 0) - (selectedPurchaseForDetail.paidAmount || 0)) > 0 && (
+                  <div className="flex justify-between text-rose-600 font-bold">
+                    <span>Nợ còn lại:</span>
+                    <span className="font-mono">
+                      {((selectedPurchaseForDetail.totalAmount || 0) - (selectedPurchaseForDetail.paidAmount || 0)).toLocaleString('vi-VN')}đ
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-gray-50 px-5 py-3 border-t flex justify-end space-x-2">
+              <button
+                type="button"
+                onClick={() => {
+                  alert(`Đã xuất lệnh in cho phiếu ${selectedPurchaseForDetail.code}`);
+                }}
+                className="px-3 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded text-xs font-medium flex items-center transition-colors cursor-pointer"
+              >
+                <Printer className="w-3.5 h-3.5 mr-1.5" />
+                In phiếu
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedPurchaseForDetail(null)}
+                className="px-4 py-1.5 bg-[#1e0b54] hover:bg-[#15073c] text-white rounded text-xs font-bold transition-colors cursor-pointer"
               >
                 Đóng
               </button>
