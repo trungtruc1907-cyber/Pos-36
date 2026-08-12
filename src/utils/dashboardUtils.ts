@@ -54,9 +54,13 @@ export function getDashboardStats(orders: Order[], products: Product[] = []) {
   let todayReturns = 0;
 
   let yesterdayRevenue = 0;
+  let yesterdayReturns = 0;
 
   let thisMonthRevenue = 0;
+  let thisMonthReturns = 0;
+
   let lastMonthRevenue = 0;
+  let lastMonthReturns = 0;
 
   // Filter orders
   orders.forEach((ord) => {
@@ -77,14 +81,18 @@ export function getDashboardStats(orders: Order[], products: Product[] = []) {
 
     // Check Yesterday
     if (d.getDate() === yestDay && d.getMonth() === yestMonth && d.getFullYear() === yestYear) {
-      if (!isReturned) {
+      if (isReturned) {
+        yesterdayReturns += ord.totalAmount;
+      } else {
         yesterdayRevenue += ord.totalAmount;
       }
     }
 
     // Check This Month
     if (d.getMonth() === refMonth && d.getFullYear() === refYear) {
-      if (!isReturned) {
+      if (isReturned) {
+        thisMonthReturns += ord.totalAmount;
+      } else {
         thisMonthRevenue += ord.totalAmount;
       }
     }
@@ -93,19 +101,26 @@ export function getDashboardStats(orders: Order[], products: Product[] = []) {
     const lastMonthVal = refMonth === 0 ? 11 : refMonth - 1;
     const lastMonthYearVal = refMonth === 0 ? refYear - 1 : refYear;
     if (d.getMonth() === lastMonthVal && d.getFullYear() === lastMonthYearVal) {
-      if (!isReturned) {
+      if (isReturned) {
+        lastMonthReturns += ord.totalAmount;
+      } else {
         lastMonthRevenue += ord.totalAmount;
       }
     }
   });
 
-  const rawVsYesterday = yesterdayRevenue > 0
-    ? Math.round(((todayRevenue - yesterdayRevenue) / yesterdayRevenue) * 10000) / 100
-    : (todayRevenue > 0 ? 100 : 0);
+  const todayNet = todayRevenue - todayReturns;
+  const yesterdayNet = yesterdayRevenue - yesterdayReturns;
+  const thisMonthNet = thisMonthRevenue - thisMonthReturns;
+  const lastMonthNet = lastMonthRevenue - lastMonthReturns;
 
-  const rawVsLastMonth = lastMonthRevenue > 0
-    ? Math.round(((thisMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 10000) / 100
-    : (thisMonthRevenue > 0 ? 100 : 0);
+  const rawVsYesterday = yesterdayNet > 0
+    ? Math.round(((todayNet - yesterdayNet) / yesterdayNet) * 10000) / 100
+    : (todayNet > 0 ? 100 : 0);
+
+  const rawVsLastMonth = lastMonthNet > 0
+    ? Math.round(((thisMonthNet - lastMonthNet) / lastMonthNet) * 10000) / 100
+    : (thisMonthNet > 0 ? 100 : 0);
 
   const vsYesterdayPercent = isNaN(rawVsYesterday) || !isFinite(rawVsYesterday) ? 0 : rawVsYesterday;
   const vsLastMonthPercent = isNaN(rawVsLastMonth) || !isFinite(rawVsLastMonth) ? 0 : rawVsLastMonth;
@@ -116,7 +131,7 @@ export function getDashboardStats(orders: Order[], products: Product[] = []) {
     todayReturns,
     vsYesterdayPercent,
     vsLastMonthPercent,
-    thisMonthRevenue,
+    thisMonthRevenue: thisMonthNet,
   };
 }
 

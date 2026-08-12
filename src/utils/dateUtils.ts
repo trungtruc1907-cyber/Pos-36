@@ -4,30 +4,47 @@
  */
 export function parseDateToMillis(dateStr?: string | null, createdAt?: string | null): number {
   if (dateStr) {
-    // Check if ISO format
-    if (dateStr.includes('T')) {
-      const t = new Date(dateStr).getTime();
+    const trimmed = dateStr.trim();
+    if (!trimmed) return 0;
+
+    // Standard ISO format with T
+    if (trimmed.includes('T')) {
+      const t = new Date(trimmed).getTime();
       if (!isNaN(t) && t > 0) return t;
     }
 
-    // Vietnamese DD/MM/YYYY HH:mm:ss format
-    const trimmed = dateStr.trim();
+    // Split date and time components
     const parts = trimmed.split(' ');
-    const dateParts = parts[0]?.split('/') || [];
-    if (dateParts.length === 3) {
-      const day = parseInt(dateParts[0], 10);
-      const month = parseInt(dateParts[1], 10) - 1; // 0-indexed
-      const year = parseInt(dateParts[2], 10);
+    const datePart = parts[0] || '';
+    const delimiter = datePart.includes('/') ? '/' : (datePart.includes('-') ? '-' : null);
 
-      let hours = 0, minutes = 0, seconds = 0;
-      if (parts[1]) {
-        const timeParts = parts[1].split(':');
-        hours = parseInt(timeParts[0] || '0', 10);
-        minutes = parseInt(timeParts[1] || '0', 10);
-        seconds = parseInt(timeParts[2] || '0', 10);
+    if (delimiter) {
+      const dateTokens = datePart.split(delimiter);
+      if (dateTokens.length === 3) {
+        let year = 0, month = 0, day = 0;
+        if (dateTokens[0].length === 4) {
+          // YYYY-MM-DD or YYYY/MM/DD
+          year = parseInt(dateTokens[0], 10);
+          month = parseInt(dateTokens[1], 10) - 1;
+          day = parseInt(dateTokens[2], 10);
+        } else {
+          // DD/MM/YYYY or DD-MM-YYYY
+          day = parseInt(dateTokens[0], 10);
+          month = parseInt(dateTokens[1], 10) - 1;
+          year = parseInt(dateTokens[2], 10);
+        }
+
+        let hours = 0, minutes = 0, seconds = 0;
+        if (parts[1]) {
+          const timeParts = parts[1].split(':');
+          hours = parseInt(timeParts[0] || '0', 10);
+          minutes = parseInt(timeParts[1] || '0', 10);
+          seconds = parseInt(timeParts[2] || '0', 10);
+        }
+
+        const d = new Date(year, month, day, hours, minutes, seconds);
+        if (!isNaN(d.getTime())) return d.getTime();
       }
-      const d = new Date(year, month, day, hours, minutes, seconds);
-      if (!isNaN(d.getTime())) return d.getTime();
     }
 
     const fallback = new Date(trimmed).getTime();

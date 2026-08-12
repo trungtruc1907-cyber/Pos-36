@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { Customer, Supplier, Order, PurchaseOrder, ViewMode, DebtPaymentRecord } from '../../types';
 import { parseDateToMillis } from '../../utils/dateUtils';
-import { Users, Search, Phone, MapPin, UserPlus, X, Building2, UserCheck, Tag, Mail, Pencil, Trash2, Lock, Edit3, Eye, Receipt, Printer, CircleDollarSign, FileOutput } from 'lucide-react';
+import { Users, Search, Phone, MapPin, UserPlus, X, Building2, UserCheck, Tag, Mail, Pencil, Trash2, Lock, Edit3, Eye, Receipt, Printer, CircleDollarSign, FileOutput, Clock, ArrowDown, ArrowUp, ArrowUpDown, RotateCcw } from 'lucide-react';
 import { Pagination } from '../Pagination';
 
-function getCustomerInvoices(c: Customer, orders: Order[] = []): Order[] {
+function getCustomerInvoices(c: Customer, orders: Order[] = [], sortOrder: 'desc' | 'asc' = 'desc'): Order[] {
   const matched = orders.filter(
     (o) =>
       (o.customerCode && o.customerCode === c.code) ||
@@ -14,97 +14,102 @@ function getCustomerInvoices(c: Customer, orders: Order[] = []): Order[] {
   const targetCount = Math.max(c.orderCount || 0, matched.length);
   const neededCount = targetCount - matched.length;
 
+  let list: Order[] = [];
+
   if (neededCount <= 0) {
-    return matched.sort((a, b) => b.orderCode.localeCompare(a.orderCode));
-  }
+    list = [...matched];
+  } else {
+    const matchedSpent = matched.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+    const remainingSpent = Math.max(0, (c.totalSpent || 0) - matchedSpent);
 
-  const matchedSpent = matched.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
-  const remainingSpent = Math.max(0, (c.totalSpent || 0) - matchedSpent);
+    const sampleProducts = [
+      { name: 'Chống thấm Sika Latex TH 5L', price: 290000, unit: 'Can' },
+      { name: 'Sikaflex 11FC Trắng 600ml', price: 180000, unit: 'Týp' },
+      { name: 'Màng chống thấm tự dính DF', price: 1250000, unit: 'Cuộn' },
+      { name: 'Sơn chống thấm Kova CT-11A 20kg', price: 1650000, unit: 'Thùng' },
+      { name: 'Lưới thủy tinh gia cường 50m2', price: 450000, unit: 'Cuộn' },
+      { name: 'SikaGrout 214-11 25kg', price: 210000, unit: 'Bao' },
+    ];
 
-  const sampleProducts = [
-    { name: 'Chống thấm Sika Latex TH 5L', price: 290000, unit: 'Can' },
-    { name: 'Sikaflex 11FC Trắng 600ml', price: 180000, unit: 'Týp' },
-    { name: 'Màng chống thấm tự dính DF', price: 1250000, unit: 'Cuộn' },
-    { name: 'Sơn chống thấm Kova CT-11A 20kg', price: 1650000, unit: 'Thùng' },
-    { name: 'Lưới thủy tinh gia cường 50m2', price: 450000, unit: 'Cuộn' },
-    { name: 'SikaGrout 214-11 25kg', price: 210000, unit: 'Bao' },
-  ];
+    const codeNum = Number(c.code.replace(/\D/g, '')) || 100;
+    const generated: Order[] = [];
 
-  const codeNum = Number(c.code.replace(/\D/g, '')) || 100;
-  const generated: Order[] = [];
+    let currentSum = 0;
+    for (let i = 0; i < neededCount; i++) {
+      const isLast = i === neededCount - 1;
+      let orderTotal = 0;
 
-  let currentSum = 0;
-  for (let i = 0; i < neededCount; i++) {
-    const isLast = i === neededCount - 1;
-    let orderTotal = 0;
-
-    if (remainingSpent > 0) {
-      if (isLast) {
-        orderTotal = remainingSpent - currentSum;
-        if (orderTotal <= 0) orderTotal = Math.round((remainingSpent / neededCount) / 1000) * 1000 || 450000;
+      if (remainingSpent > 0) {
+        if (isLast) {
+          orderTotal = remainingSpent - currentSum;
+          if (orderTotal <= 0) orderTotal = Math.round((remainingSpent / neededCount) / 1000) * 1000 || 450000;
+        } else {
+          const avg = remainingSpent / neededCount;
+          const factor = 0.75 + ((i * 37) % 50) / 100;
+          orderTotal = Math.round((avg * factor) / 1000) * 1000;
+          if (orderTotal <= 0) orderTotal = 350000;
+        }
       } else {
-        const avg = remainingSpent / neededCount;
-        const factor = 0.75 + ((i * 37) % 50) / 100;
-        orderTotal = Math.round((avg * factor) / 1000) * 1000;
-        if (orderTotal <= 0) orderTotal = 350000;
+        orderTotal = 450000 + ((i * 150000) % 1200000);
       }
-    } else {
-      orderTotal = 450000 + ((i * 150000) % 1200000);
-    }
-    currentSum += orderTotal;
+      currentSum += orderTotal;
 
-    const dayOffset = i * 2 + (codeNum % 3);
-    const day = Math.max(1, 28 - (dayOffset % 27));
-    const dayStr = day < 10 ? `0${day}` : `${day}`;
-    const monthStr = '08';
-    const hour = 8 + (i % 10);
-    const minute = 10 + (i * 12) % 50;
-    const hourStr = hour < 10 ? `0${hour}` : `${hour}`;
-    const minuteStr = minute < 10 ? `0${minute}` : `${minute}`;
-    const dateStr = `${dayStr}/${monthStr}/2026 ${hourStr}:${minuteStr}`;
+      const dayOffset = i * 2 + (codeNum % 3);
+      const day = Math.max(1, 28 - (dayOffset % 27));
+      const dayStr = day < 10 ? `0${day}` : `${day}`;
+      const monthStr = '08';
+      const hour = 8 + (i % 10);
+      const minute = 10 + (i * 12) % 50;
+      const hourStr = hour < 10 ? `0${hour}` : `${hour}`;
+      const minuteStr = minute < 10 ? `0${minute}` : `${minute}`;
+      const dateStr = `${dayStr}/${monthStr}/2026 ${hourStr}:${minuteStr}`;
 
-    const prod = sampleProducts[i % sampleProducts.length];
-    const qty = Math.max(1, Math.round(orderTotal / prod.price) || 1);
-    const isReturn = i > 0 && i % 8 === 0;
+      const prod = sampleProducts[i % sampleProducts.length];
+      const qty = Math.max(1, Math.round(orderTotal / prod.price) || 1);
+      const isReturn = i > 0 && i % 8 === 0;
 
-    generated.push({
-      id: `gen-ord-${c.id}-${i}`,
-      orderCode: `HD${10280 - (codeNum % 40) - i}`,
-      date: dateStr,
-      customerCode: c.code,
-      customerName: c.name,
-      subtotal: orderTotal,
-      discount: 0,
-      totalAmount: orderTotal,
-      amountPaid: orderTotal,
-      itemsCount: qty,
-      paymentMethod: i % 2 === 0 ? 'cash' : 'transfer',
-      status: isReturn ? 'Trả hàng' : 'Đã thanh toán',
-      items: [
-        {
-          product: {
-            id: `p-gen-${i}`,
-            code: `SP00${100 + (i % 20)}`,
-            name: prod.name,
-            unit: prod.unit,
-            price: prod.price,
-            costPrice: Math.round(prod.price * 0.8),
-            stock: 50,
-            category: 'Chống thấm',
+      generated.push({
+        id: `gen-ord-${c.id}-${i}`,
+        orderCode: `HD${10280 - (codeNum % 40) - i}`,
+        date: dateStr,
+        customerCode: c.code,
+        customerName: c.name,
+        subtotal: orderTotal,
+        discount: 0,
+        totalAmount: orderTotal,
+        amountPaid: orderTotal,
+        itemsCount: qty,
+        paymentMethod: i % 2 === 0 ? 'cash' : 'transfer',
+        status: isReturn ? 'Trả hàng' : 'Đã thanh toán',
+        items: [
+          {
+            product: {
+              id: `p-gen-${i}`,
+              code: `SP00${100 + (i % 20)}`,
+              name: prod.name,
+              unit: prod.unit,
+              price: prod.price,
+              costPrice: Math.round(prod.price * 0.8),
+              stock: 50,
+              category: 'Chống thấm',
+            },
+            quantity: qty,
+            unitPrice: prod.price,
           },
-          quantity: qty,
-          unitPrice: prod.price,
-        },
-      ],
-    });
+        ],
+      });
+    }
+
+    list = [...matched, ...generated];
   }
 
-  const result = [...matched, ...generated];
-  return result.sort((a, b) => {
+  return list.sort((a, b) => {
     const timeA = parseDateToMillis(a.date, a.createdAt);
     const timeB = parseDateToMillis(b.date, b.createdAt);
-    if (timeA !== timeB) return timeB - timeA;
-    return b.orderCode.localeCompare(a.orderCode);
+    if (timeA !== timeB) {
+      return sortOrder === 'desc' ? timeB - timeA : timeA - timeB;
+    }
+    return sortOrder === 'desc' ? b.orderCode.localeCompare(a.orderCode) : a.orderCode.localeCompare(b.orderCode);
   });
 }
 
@@ -149,6 +154,7 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
   // Expanded row state for customers
   const [expandedCustomerId, setExpandedCustomerId] = useState<string | null>(null);
   const [customerDetailTab, setCustomerDetailTab] = useState<'info' | 'history' | 'debt' | 'points'>('info');
+  const [historySortOrder, setHistorySortOrder] = useState<'desc' | 'asc'>('desc');
 
   // Edit supplier state
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
@@ -1359,22 +1365,58 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
 
                                   {/* Tab Content: Lịch sử bán/trả hàng */}
                             {customerDetailTab === 'history' && (() => {
-                              const customerInvoices = getCustomerInvoices(c, orders);
+                              const customerInvoices = getCustomerInvoices(c, orders, historySortOrder);
+                              const salesCount = customerInvoices.filter((ord) => ord.status !== 'Trả hàng').length;
+                              const returnsCount = customerInvoices.filter((ord) => ord.status === 'Trả hàng').length;
+
                               return (
-                                <div className="p-4 bg-white">
-                                  <div className="mb-2.5 flex justify-between items-center text-xs text-gray-600 bg-gray-50 p-2 rounded border border-gray-100">
-                                    <span>Tổng số hóa đơn mua: <strong className="text-gray-900 font-bold font-mono">{customerInvoices.length}</strong></span>
-                                    <span>Tổng tiền tích lũy: <strong className="text-blue-600 font-bold font-mono">{c.totalSpent ? (c.totalSpent || 0).toLocaleString('vi-VN') : 0}đ</strong></span>
+                                <div className="p-4 bg-white space-y-3">
+                                  <div className="flex flex-wrap items-center justify-between text-xs text-gray-600 bg-gray-50 p-2.5 rounded-lg border border-gray-100 gap-2">
+                                    <div className="flex items-center space-x-3">
+                                      <span>Tổng số giao dịch: <strong className="text-gray-900 font-bold font-mono">{customerInvoices.length}</strong></span>
+                                      <span className="text-gray-300">|</span>
+                                      <span className="text-emerald-700 font-medium">Bán hàng: <strong className="font-bold font-mono">{salesCount}</strong></span>
+                                      <span className="text-gray-300">|</span>
+                                      <span className="text-rose-700 font-medium">Trả hàng: <strong className="font-bold font-mono">{returnsCount}</strong></span>
+                                    </div>
+                                    <div className="flex items-center space-x-3">
+                                      <span>Tổng tiền tích lũy: <strong className="text-blue-600 font-bold font-mono">{c.totalSpent ? (c.totalSpent || 0).toLocaleString('vi-VN') : 0}đ</strong></span>
+                                      <button
+                                        type="button"
+                                        onClick={() => setHistorySortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))}
+                                        className="flex items-center space-x-1 px-2.5 py-1 bg-white border border-gray-200 hover:bg-gray-100 rounded text-[11px] font-semibold text-gray-700 transition-colors cursor-pointer shadow-2xs"
+                                        title="Sắp xếp danh sách theo thời gian"
+                                      >
+                                        <Clock className="w-3.5 h-3.5 text-blue-600" />
+                                        <span>Thời gian: {historySortOrder === 'desc' ? 'Mới nhất trước' : 'Cũ nhất trước'}</span>
+                                        {historySortOrder === 'desc' ? <ArrowDown className="w-3 h-3 text-gray-500" /> : <ArrowUp className="w-3 h-3 text-gray-500" />}
+                                      </button>
+                                    </div>
                                   </div>
-                                  <div className="max-h-80 overflow-y-auto border border-gray-200 rounded">
+
+                                  <div className="max-h-80 overflow-y-auto border border-gray-200 rounded-lg shadow-2xs">
                                     <table className="w-full text-left text-xs">
                                       <thead className="bg-gray-50 text-gray-600 font-bold border-b border-gray-200 sticky top-0 z-10">
                                         <tr>
                                           <th className="p-2.5">Mã hóa đơn</th>
-                                          <th className="p-2.5">Thời gian</th>
+                                          <th
+                                            className="p-2.5 cursor-pointer hover:bg-gray-100 select-none transition-colors"
+                                            onClick={() => setHistorySortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))}
+                                            title="Click để thay đổi chiều sắp xếp theo thời gian"
+                                          >
+                                            <div className="flex items-center space-x-1 text-blue-700 font-bold">
+                                              <Clock className="w-3.5 h-3.5" />
+                                              <span>Thời gian</span>
+                                              {historySortOrder === 'desc' ? (
+                                                <ArrowDown className="w-3.5 h-3.5" />
+                                              ) : (
+                                                <ArrowUp className="w-3.5 h-3.5" />
+                                              )}
+                                            </div>
+                                          </th>
                                           <th className="p-2.5">Người bán</th>
                                           <th className="p-2.5 text-right">Tổng tiền (VNĐ)</th>
-                                          <th className="p-2.5 text-center">Trạng thái</th>
+                                          <th className="p-2.5 text-center">Loại giao dịch</th>
                                           <th className="p-2.5 text-center">Chi tiết</th>
                                         </tr>
                                       </thead>
@@ -1387,7 +1429,7 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
                                               onClick={() => setSelectedOrderForDetail(ord)}
                                             >
                                               <td className="p-2.5 font-mono text-blue-600 font-bold">{ord.orderCode}</td>
-                                              <td className="p-2.5 font-mono text-gray-600">{ord.date}</td>
+                                              <td className="p-2.5 font-mono text-gray-700 font-medium">{ord.date}</td>
                                               <td className="p-2.5 text-gray-800 font-medium">Chống Thấm 36</td>
                                               <td className="p-2.5 text-right font-mono font-bold text-gray-900">
                                                 {(ord.totalAmount || 0).toLocaleString('vi-VN')}đ
@@ -1400,7 +1442,7 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
                                                       : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                                                   }`}
                                                 >
-                                                  {ord.status === 'Trả hàng' ? 'Trả hàng' : 'Hoàn thành'}
+                                                  {ord.status === 'Trả hàng' ? 'Trả hàng' : 'Bán hàng'}
                                                 </span>
                                               </td>
                                               <td className="p-2.5 text-center">
